@@ -1,0 +1,19 @@
+Begränsningar:
+    ingen preprocessor
+    ett program definieras i en fil, ingen linker används.
+    kompilatorn stödjer bara en sorts assembly (riscv? x86? arm?)
+    kompilatorns output kommer vara plain text assembly, inte en exekverbar fil
+    språket som kompileras är en nedskalad och modifierad version av C, hela C kommer inte stödjas.
+    endast input/output via stdin/stdout
+
+    C funkionalitet som jag planerar att stödja:
+        variabler
+        matematiska uttryck
+        conditionals och logiska operationer
+        loopar
+        goto
+        function calls
+        bitwise logik?
+        structs?
+        unions?
+        enums?
