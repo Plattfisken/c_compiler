@@ -1,0 +1,17 @@
+Begränsningar:
+    ingen preprocessor
+    kompilatorn stödjer bara en sorts assembly (ARM eftersom det är arkitekturen på datorn jag jobbar på)
+    kompilatorns output kommer vara plain text assembly, inte en exekverbar fil
+    språket som kompileras är en nedskalad och modifierad version av C, hela C kommer inte stödjas.
+
+    C funkionalitet som jag planerar att stödja:
+        variabler
+        matematiska uttryck
+        conditionals och logiska operationer
+        loopar
+        goto
+        function calls
+        bitwise logik?
+        structs?
+        unions?
+        enums?
