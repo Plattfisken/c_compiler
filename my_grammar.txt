@@ -1,0 +1,135 @@
+My simplified C grammar.
+TODO: structs, enums, for, do-while
+
+<translation_unit>       ::= <function_definition> | <translation_unit> <function_definition>
+<function_definition>    ::= <type_specifier> <function_declarator> <compound_statement>
+<type_specifier>         ::= <integer_type_specifier> | DOUBLE | FLOAT | VOID
+<integer_type_specifier> ::= <integer_type> | UNSIGNED <integer_type> | <integer_type> UNSIGNED
+<integer_type>           ::= CHAR | INT | LONG | SHORT
+<function_declarator>    ::= <declarator> OPEN_PAREN CLOSE_PAREN | <declarator> OPEN_PAREN <parameter_list> CLOSE_PAREN
+<declarator>             ::= IDENTIFIER | <pointer> IDENTIFIER
+<pointer>                ::= STAR | STAR <pointer>
+<parameter_list>         ::= <parameter_declaration> | <parameter_declaration> COMMA <parameter_list>
+<parameter_declaration>  ::= <type_specifier> IDENTIFIER
+<block_item_list>        ::= <block_item> | <block_item> <block_item_list>
+<block_item>             ::= <declaration> | <statement>
+<declaration>            ::= <type_specifier> <init_declarator> SEMICOLON | <type_specifier> <function_declarator> SEMICOLON
+<init_declarator>        ::= <declarator> EQUALS <expression> | <declarator>
+<statement>              ::= <compound_statement> | <expression_statement> | <itaration_statement> | <selection_statement> | <jump_statement>
+<compound_statement>     ::= OPEN_CURLY CLOSE_CURLY | OPEN_CURLY <block_item_list> CLOSE_CURLY
+<expression_statement>   ::= SEMICOLON | <expression> SEMICOLON
+<itaration_statement>    ::= WHILE OPEN_CURLY <expression> CLOSE_CURLY <statement>
+<selection_statement>    ::= IF OPEN_CURLY <expression> CLOSE_CURLY <statement> ELSE <statement> |
+                             IF OPEN_CURLY <expression> CLOSE_CURLY <statement>
+<jump_statement>         ::= GOTO IDENTIFIER SEMICOLON | CONTINUE SEMICOLON | BREAK SEMICOLON | RETURN SEMICOLON | RETURN <expression> SEMICOLON
+<expression>             ::= <unary_expression> | <unary_expression> <binary_operator> <expression> | <assignment_expression>
+<assignment_expression>  ::= <unary_expression> <assignment_operator> <expression>
+<unary_expression>       ::= <prefix_operator> <primary_expression> | <primary_expression> <postfix_operator> |
+                             <prefix_operator> <unary_expression> | <unary_expression> <postfix_operator>
+<primary_expression>     ::= IDENTIFIER | <constant> | OPEN_PAREN <expression> CLOSE_PAREN
+<constant>               ::= FLOAT_LITERAL | INT_LITERAL | STRING_LITERAL | CHAR_LITERAL
+<prefix_operator>        ::= STAR | AND | SIZEOF | OPEN_PAREN <type_specifier> CLOSE_PAREN | OPEN_PAREN <type_specifier> <pointer> CLOSE_PAREN
+<postfix_operator>       ::= DOT | ARROW | OPEN_BRACKET <expression> CLOSE_BRACKET
+<binary_operator>        ::= PLUS | MINUS | STAR | SLASH | PROCENT | SMALLER | GREATER | GREATER_EQUAL | SMALLER_EQUAL |
+                             EQUALS_EQUAL | EXCLAM_EQUAL | AND_AND | OR_OR | SMALLER_SMALLER | GREATER_GREATER | AND | OR | XOR
+<assignment_operator>    ::= EQUALS | PLUS_EQUALS | MINUS_EQUALS | STAR_EQUALS | SLASH_EQUALS | PROCENT_EQUALS |
+                             LEFT_SHIFT_EQUALS | RIGHT_SHIFT_EQUALS | AND_EQUALS | OR_EQUALS | XOR_EQUALS
+
+terminal symbols:
+    IDENTIFIER,
+    STRING_LITERAL,
+    INT_LITERAL,
+    FLOAT_LITERAL,
+    CHAR_LITERAL,
+
+    OPEN_PAREN,          // (
+    CLOSE_PAREN,         // )
+    OPEN_CURLY,          // {
+    CLOSE_CURLY,         // }
+    OPEN_BRACKET,        // [
+    CLOSE_BRACKET,       // ]
+
+    SEMICOLON,           // ;
+    COLON,               // :
+    DOT,                 // .
+    COMMA,               // ,
+    QUESTION_MARK,       // ?
+
+    EXCLAM,              // !
+    EXCLAM_EQUALS,       // !=
+
+    PLUS,                // +
+    PLUS_PLUS,           // ++
+    PLUS_EQUALS,         // +=
+
+    MINUS,               // -
+    MINUS_MINUS,         // --
+    MINUS_EQUALS,        // -=
+    ARROW,               // ->
+
+    STAR,                // *
+    STAR_EQUALS,         // *=
+
+    SLASH,               // /
+    SLASH_EQUALS,        // /=
+
+    PROCENT,             // %
+    PROCENT_EQUALS,      // %=
+
+    EQUALS,              // =
+    EQUALS_EQUALS,       // ==
+                         //
+    SMALLER,             // <
+    SMALLER_SMALLER,     // <<
+    SMALLER_EQUALS,      // <=
+    LEFT_SHIFT_EQUALS,   // <<=
+
+    GREATER,             // >
+    GREATER_GREATER,     // >>
+    GREATER_EQUALS,      // >=
+    RIGHT_SHIFT_EQUALS,  // >>=
+
+    AND,                 // &
+    AND_AND,             // &&
+    AND_EQUALS,          // &=
+                         //
+    OR,                  // |
+    OR_OR,               // ||
+    OR_EQUALS,           // |=
+
+    XOR,                 // ^
+    XOR_EQUALS,          // ^=
+
+    NOT,                 // ~
+
+    KEYWORD_BREAK,
+    KEYWORD_CASE,
+    KEYWORD_CHAR,
+    KEYWORD_CONST,
+    KEYWORD_CONTINUE,
+    KEYWORD_DEFAULT,
+    KEYWORD_DO,
+    KEYWORD_DOUBLE,
+    KEYWORD_ELSE,
+    KEYWORD_ENUM,
+    KEYWORD_FLOAT,
+    KEYWORD_FOR,
+    KEYWORD_GOTO,
+    KEYWORD_IF,
+    KEYWORD_INT,
+    KEYWORD_LONG,
+    KEYWORD_RETURN,
+    KEYWORD_SHORT,
+    KEYWORD_SIZEOF,
+    KEYWORD_STATIC,
+    KEYWORD_STRUCT,
+    KEYWORD_SWITCH,
+    KEYWORD_TYPEDEF,
+    KEYWORD_UNION,
+    KEYWORD_UNSIGNED,
+    KEYWORD_VOID,
+    KEYWORD_WHILE,
+
+    COMMENT,
+    EOF,
+    PARSE_ERROR
