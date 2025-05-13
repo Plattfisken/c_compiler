@@ -57,7 +57,8 @@ public static class Compiler {
     }
 
     static string code_gen(AstNode root_node) {
-        return CodeGen.code_gen(root_node);
+        var code_generator = new CodeGen();
+        return code_generator.code_gen(root_node);
     }
 
     public static string compile(string source_code) {

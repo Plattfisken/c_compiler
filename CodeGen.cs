@@ -1,14 +1,11 @@
 using System.Text;
 
 namespace compiler_csharp;
-public static class CodeGen {
-    static List<string> str_lits_to_add = new();
-    static StringBuilder sb = new();
+public class CodeGen {
+    List<string> str_lits_to_add = new();
+    StringBuilder sb = new();
 
-    public static string code_gen(AstNode root_node) {
-        sb.AppendLine(".global _main");
-        sb.AppendLine(".align 4");
-
+    public string code_gen(AstNode root_node) {
         top_level_statements(root_node);
         for(int i = 0; i < str_lits_to_add.Count; ++i) {
             var str_lit = str_lits_to_add[i];
@@ -18,15 +15,19 @@ public static class CodeGen {
         return sb.ToString();
     }
 
-    static void top_level_statements(AstNode node) {
+    void top_level_statements(AstNode node) {
         Compiler.assert(node.type == AST_TYPE.TRANSLATION_UNIT, "node was not of type TRANSLATION_UNIT");
         foreach(var child in node.children) {
             if(child.type == AST_TYPE.PROCEDURE_DEF) procedure_def(child);
         }
     }
 
-    static void procedure_def(AstNode proc_def_node) {
+    void procedure_def(AstNode proc_def_node) {
         ProcedureDef proc_def = (ProcedureDef)proc_def_node.value;
+
+        sb.AppendLine($".global _{proc_def.name}");
+        sb.AppendLine(".align 4");
+
         List<VarDecl> declared_variables = new();
         foreach(AstNode child in proc_def_node.children) {
             if(child.type == AST_TYPE.VAR_DECL) {
