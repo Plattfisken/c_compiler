@@ -1,54 +1,56 @@
 namespace compiler_csharp;
 
 public class AstNode {
-    public List<AstNode> children= new();
+    public AST_TYPE type;
+    public object? value;
+    public List<AstNode> children = new();
+
+    public AstNode(AST_TYPE t, object? v = null) => (type, value) = (t, v);
 }
 
-public class AstNode_TranslationUnit : AstNode {
+public struct ProcedureDef {
+    public string name;
+    public DATA_TYPE return_type;
 }
 
-public class AstNode_ProcedureDef : AstNode {
-    public string name = "";
-    public RETURN_TYPE ret_type;
+public struct ProcedureCall {
+    public string name;
 }
 
-public class AstNode_ProcedureCall : AstNode {
-    public string name = "";
+public struct VarDecl {
+    public DATA_TYPE type;
+    public string name;
+    public object? init_value;
 }
 
-public class AstNode_Arg : AstNode {
+// TODO: this should probably just be removed when expressions as args are just more expressions
+public struct Arg {
     public Token token;
 }
 
-public class AstNode_Block : AstNode {
+public struct binary_operator {
+    public TOKEN_TYPE type;
 }
 
-public class AstNode_Assgn : AstNode {
-    public AstNode? left;
-    public AstNode? right;
+public enum AST_TYPE {
+    TRANSLATION_UNIT,
+    PROCEDURE_DEF,
+    PROCEDURE_CALL,
+    ARG,
+    VAR_DECL,
+    BINARY_OPERATOR
 }
 
-public class AstNode_Operator_Add : AstNode {
-    public AstNode? left;
-    public AstNode? right;
-}
-
-public class AstNode_Operator_Sub : AstNode {
-    public AstNode? left;
-    public AstNode? right;
-}
-
-public class AstNode_Operator_Mul : AstNode {
-    public AstNode? left;
-    public AstNode? right;
-}
-
-public class AstNode_Operator_Div : AstNode {
-    public AstNode? left;
-    public AstNode? right;
-}
-
-public enum RETURN_TYPE {
+public enum DATA_TYPE {
     VOID,
+    CHAR,
+    SHORT,
     INT,
+    LONG,
+    UNSIGNED_CHAR,
+    UNSIGNED_SHORT,
+    UNSIGNED_INT,
+    UNSIGNED_LONG,
+    FLOAT,
+    DOUBLE
 }
