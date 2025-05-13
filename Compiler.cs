@@ -1,4 +1,3 @@
-
 using System.Text;
 
 namespace compiler_csharp;
@@ -22,7 +21,7 @@ public static class Compiler {
         return file_size;
     }
 
-    static string read_entire_file_as_string(string file_path) {
+    public static string read_entire_file_as_string(string file_path) {
         try {
             var file = File.Open(file_path, FileMode.Open);
             var file_size = get_file_size(file!);
@@ -37,7 +36,7 @@ public static class Compiler {
         }
     }
 
-    static void write_to_file(string content, string file_name) {
+    public static void write_to_file(string content, string file_name) {
         File.WriteAllText(file_name, content);
     }
 
@@ -61,12 +60,8 @@ public static class Compiler {
         return CodeGen.code_gen(root_node);
     }
 
-    public static void compile(string source_file_path) {
-        var source_code = read_entire_file_as_string(source_file_path);
+    public static string compile(string source_code) {
         var ast = parse(source_code);
-        var assembly = code_gen(ast);
-
-        var assembly_file_name = Path.GetFileNameWithoutExtension(source_file_path) + ".s";
-        write_to_file(assembly, assembly_file_name);
+        return code_gen(ast);
     }
 }

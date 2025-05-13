@@ -78,6 +78,7 @@ public static class CodeGen {
                             sb.AppendLine($"\tmov\tx{next_arg_register++}, #{(long)arg.token.value}");
                             break;
                         case TOKEN_TYPE.IDENTIFIER:
+                            // TODO: check the type to know which register type to use. Or how much memory to load
                             sb.AppendLine($"\tldr\tw{next_arg_register++}, [sp, #{var_offsets[(string)arg.token.value]}]");
                             break;
                         default:
