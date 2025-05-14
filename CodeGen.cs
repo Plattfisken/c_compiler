@@ -53,34 +53,33 @@ public class CodeGen {
         foreach(AstNode child in proc_def_node.children) {
             if(child.type == AST_TYPE.VAR_DECL) {
                 var var_decl = (VarDecl)child.value;
-                switch(var_decl.type) {
-                    case DATA_TYPE.INT:
-                        if(var_decl.init_value != null) {
-                            int val = (int)(long)var_decl.init_value;
-                            sb.AppendLine($"\tmov\tw8, #{val}");
-                        }
-                        break;
-                }
                 stack_offset -= get_size_of_type(var_decl.type);
                 var_offsets[var_decl.name] = stack_offset;
-                sb.AppendLine($"\tstr\tw8, [sp, #{stack_offset}]");
+                if(var_decl.init_value != null) {
+                    switch(var_decl.type.type) {
+                        case DATA_TYPE.INT:
+                            int val = (int)(long)var_decl.init_value;
+                            sb.AppendLine($"\tmov\tw8, #{val}");
+                            break;
+                    }
+                    sb.AppendLine($"\tstr\tw8, [sp, #{stack_offset}]");
+                }
             }
             if(child.type == AST_TYPE.PROCEDURE_CALL) {
                 var proc_call = (ProcedureCall)child.value;
                 int next_arg_register = 0;
-                foreach(AstNode grandchild in child.children) {
-                    var arg = (Arg)grandchild.value;
-                    switch(arg.token.type) {
-                        case TOKEN_TYPE.STRING_LITERAL:
-                            str_lits_to_add.Add((string)arg.token.value);
+                foreach(AstNode expr in proc_call.args) {
+                    switch(expr.type) {
+                        case AST_TYPE.STRING_LITERAL:
+                            str_lits_to_add.Add((string)expr.value);
                             sb.AppendLine($"\tadr\tx{next_arg_register++}, L.str{str_lits_to_add.Count-1}");
                             break;
-                        case TOKEN_TYPE.INT_LITERAL:
-                            sb.AppendLine($"\tmov\tx{next_arg_register++}, #{(long)arg.token.value}");
+                        case AST_TYPE.INT_LITERAL:
+                            sb.AppendLine($"\tmov\tx{next_arg_register++}, #{(long)expr.value}");
                             break;
-                        case TOKEN_TYPE.IDENTIFIER:
+                        case AST_TYPE.VAR:
                             // TODO: check the type to know which register type to use. Or how much memory to load
-                            sb.AppendLine($"\tldr\tw{next_arg_register++}, [sp, #{var_offsets[(string)arg.token.value]}]");
+                            sb.AppendLine($"\tldr\tw{next_arg_register++}, [sp, #{var_offsets[((Var)expr.value).name]}]");
                             break;
                         default:
                             break;
@@ -95,8 +94,9 @@ public class CodeGen {
         sb.AppendLine("\tret");
     }
 
-    static int get_size_of_type(DATA_TYPE t) {
-        switch(t) {
+    static int get_size_of_type(DataType t) {
+        if(t.indirection_count > 0) return 8;
+        switch(t.type) {
             case DATA_TYPE.VOID:
                 return 0;
             case DATA_TYPE.CHAR:

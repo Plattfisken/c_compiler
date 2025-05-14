@@ -61,8 +61,48 @@ public static class Compiler {
         return code_generator.code_gen(root_node);
     }
 
-    public static string compile(string source_code) {
+    static void print_ast(AstNode root_node) {
+        Queue<AstNode> q = new();
+        var node = root_node;
+        q.Enqueue(node);
+        while(q.Count > 0) {
+            var new_node = q.Dequeue();
+            node = new_node;
+            Console.Write(node_text(node));
+            if(node.children.Count > 0) Console.Write(" --> ");
+            foreach(var child in node.children) {
+                q.Enqueue(child);
+                Console.Write(node_text(child));
+                Console.Write(", ");
+            }
+            Console.WriteLine();
+        }
+        string node_text(AstNode n) {
+            switch(n.type) {
+                case AST_TYPE.VAR:
+                    return ((Var)n.value).name;
+                case AST_TYPE.INT_LITERAL:
+                    return ((long)n.value).ToString();
+                case AST_TYPE.FLOAT_LITERAL:
+                    return ((float)n.value).ToString();
+                case AST_TYPE.CHAR_LITERAL:
+                    return ((char)(long)n.value).ToString();
+                case AST_TYPE.STRING_LITERAL:
+                    return (string)n.value;
+                case AST_TYPE.BINARY_OPERATOR:
+                    return ((BinaryOperator)n.value).type.ToString();
+                default:
+                    return n.type.ToString();
+            }
+        }
+    }
+
+    public static string compile(string source_code, bool print_ast_only) {
         var ast = parse(source_code);
+        if(print_ast_only) {
+            print_ast(ast);
+            System.Environment.Exit(0);
+        }
         return code_gen(ast);
     }
 }

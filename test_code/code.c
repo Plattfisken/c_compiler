@@ -1,5 +1,6 @@
-int write();
-int printf();
+int write(int unsigned fd, char *buf, unsigned long length);
+int printf(char *str);
+
 int external_function();
 void my_func() {
     int fd = 1;
@@ -13,5 +14,5 @@ int main() {
     int fd = 1;
     write(fd, "Hello, world!\n", length);
     my_func();
-    printf("end");
+    printf("end\n");
 }
