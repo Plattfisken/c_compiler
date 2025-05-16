@@ -21,7 +21,7 @@ public struct ProcedureDef {
     public string name;
     public DataType return_type;
     public List<DataType> parameters;
-    public AstNode body;
+    // public AstNode body;
 }
 
 public struct ProcedureDecl {

@@ -57,8 +57,9 @@ public class Parser {
         proc_def.name = name;
         proc_def.return_type = return_type;
         proc_def.parameters = parameters;
-        proc_def.body = compound_statement();
-        return new AstNode(AST_TYPE.PROCEDURE_DEF, proc_def);
+        var ret = new AstNode(AST_TYPE.PROCEDURE_DEF, proc_def);
+        ret.children.Add(compound_statement());
+        return ret;
     }
 
     List<DataType> param_specifier() {
@@ -262,12 +263,20 @@ public class Parser {
         return ret;
     }
 
+    List<AstNode> arguments() {
+        var ret = new List<AstNode>();
+        do {
+            ret.Add(expression(0, TOKEN_TYPE.COMMA, TOKEN_TYPE.CLOSE_PAREN));
+        } while(accept(TOKEN_TYPE.COMMA));
+        return ret;
+    }
+
     // terminating_token_types are checked before infix operators, which means infix operators can be overriden.
     // For example token type COMMA may be an infix operator but in case of an expression within a function call it should terminate the expression
     // TODO: postfix operators: ++ -- []
     // prefix operators: cast
     // infix operators: , . ->
-    AstNode expression(int min_bp, params TOKEN_TYPE[] terminating_token_types) {
+    public AstNode expression(int min_bp, params TOKEN_TYPE[] terminating_token_types) {
         var t = consume_token();
         AstNode left_hand_side;
         switch(t.type) {
@@ -288,6 +297,10 @@ public class Parser {
                     variable.name = name;
                     left_hand_side = new AstNode(AST_TYPE.VAR, variable);
                 }
+                break;
+            case TOKEN_TYPE.OPEN_PAREN:
+                left_hand_side = expression(0, TOKEN_TYPE.CLOSE_PAREN);
+                expect(TOKEN_TYPE.CLOSE_PAREN);
                 break;
             case TOKEN_TYPE.INT_LITERAL:
                 left_hand_side = new AstNode(AST_TYPE.INT_LITERAL, (long)t.value);
@@ -318,7 +331,16 @@ public class Parser {
                 break;
 
             var op_type = peek_token().type;
-            var (l_bp, r_bp) = get_infix_binding_power(op_type);
+            var l_bp = get_postfix_binding_power(op_type);
+            if(l_bp != -1) {
+                if(l_bp < min_bp) break;
+                consume_token();
+                var postfix_op = new AstNode(AST_TYPE.POSTFIX_OPERATOR, op_type);
+                postfix_op.children.Add(left_hand_side);
+                left_hand_side = postfix_op;
+                continue;
+            }
+            (l_bp, var r_bp) = get_infix_binding_power(op_type);
 
             if((l_bp, r_bp) == (-1,-1))
                 parse_error($"Expected infix operator", peek_token());
@@ -336,6 +358,14 @@ public class Parser {
         return left_hand_side;
     }
 
+    int get_postfix_binding_power(TOKEN_TYPE t) {
+        switch(t) {
+            case TOKEN_TYPE.PLUS_PLUS:
+            case TOKEN_TYPE.MINUS_MINUS: return 24;
+            default: return -1;
+        }
+    }
+
     // return -1 if its not a valid prefix operator
     int get_prefix_binding_power(TOKEN_TYPE t) {
         switch(t) {
@@ -348,7 +378,7 @@ public class Parser {
             case TOKEN_TYPE.NOT:
             case TOKEN_TYPE.STAR:
             case TOKEN_TYPE.AND:
-            case TOKEN_TYPE.KEYWORD_SIZEOF: return(23);
+            case TOKEN_TYPE.KEYWORD_SIZEOF: return 23;
             default:
                 return -1;
         }
@@ -398,21 +428,6 @@ public class Parser {
             default:
                 return (-1,-1);
         }
-    }
-
-    // void arguments(AstNode parent) {
-    //     Compiler.assert(parent.type == AST_TYPE.PROCEDURE_CALL, "Should only be called with procedure call");
-    //     parent.children.Add(expression(0, TOKEN_TYPE.COMMA, TOKEN_TYPE.CLOSE_PAREN));
-    //     if(accept(TOKEN_TYPE.COMMA))
-    //         arguments(parent);
-    // }
-
-    List<AstNode> arguments() {
-        var ret = new List<AstNode>();
-        do {
-            ret.Add(expression(0, TOKEN_TYPE.COMMA, TOKEN_TYPE.CLOSE_PAREN));
-        } while(accept(TOKEN_TYPE.COMMA));
-        return ret;
     }
 
     static bool is_datatype(TOKEN_TYPE t) {
