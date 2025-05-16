@@ -55,38 +55,38 @@ public class CodeGen {
                 var var_decl = (VarDecl)child.value;
                 stack_offset -= get_size_of_type(var_decl.type);
                 var_offsets[var_decl.name] = stack_offset;
-                if(var_decl.init_value != null) {
-                    switch(var_decl.type.type) {
-                        case DATA_TYPE.INT:
-                            int val = (int)(long)var_decl.init_value;
-                            sb.AppendLine($"\tmov\tw8, #{val}");
-                            break;
-                    }
-                    sb.AppendLine($"\tstr\tw8, [sp, #{stack_offset}]");
-                }
+                // if(var_decl.init_value != null) {
+                //     switch(var_decl.type.type) {
+                //         case DATA_TYPE.INT:
+                //             int val = (int)(long)var_decl.init_value;
+                //             sb.AppendLine($"\tmov\tw8, #{val}");
+                //             break;
+                //     }
+                //     sb.AppendLine($"\tstr\tw8, [sp, #{stack_offset}]");
+                // }
             }
-            if(child.type == AST_TYPE.PROCEDURE_CALL) {
-                var proc_call = (ProcedureCall)child.value;
-                int next_arg_register = 0;
-                foreach(AstNode expr in proc_call.args) {
-                    switch(expr.type) {
-                        case AST_TYPE.STRING_LITERAL:
-                            str_lits_to_add.Add((string)expr.value);
-                            sb.AppendLine($"\tadr\tx{next_arg_register++}, L.str{str_lits_to_add.Count-1}");
-                            break;
-                        case AST_TYPE.INT_LITERAL:
-                            sb.AppendLine($"\tmov\tx{next_arg_register++}, #{(long)expr.value}");
-                            break;
-                        case AST_TYPE.VAR:
-                            // TODO: check the type to know which register type to use. Or how much memory to load
-                            sb.AppendLine($"\tldr\tw{next_arg_register++}, [sp, #{var_offsets[((Var)expr.value).name]}]");
-                            break;
-                        default:
-                            break;
-                    }
-                }
-                sb.AppendLine($"\tbl\t_{proc_call.name}");
-            }
+            // if(child.type == AST_TYPE.PROCEDURE_CALL) {
+            //     var proc_call = (ProcedureCall)child.value;
+            //     int next_arg_register = 0;
+            //     foreach(AstNode expr in proc_call.args) {
+            //         switch(expr.type) {
+            //             case AST_TYPE.STRING_LITERAL:
+            //                 str_lits_to_add.Add((string)expr.value);
+            //                 sb.AppendLine($"\tadr\tx{next_arg_register++}, L.str{str_lits_to_add.Count-1}");
+            //                 break;
+            //             case AST_TYPE.INT_LITERAL:
+            //                 sb.AppendLine($"\tmov\tx{next_arg_register++}, #{(long)expr.value}");
+            //                 break;
+            //             case AST_TYPE.VAR:
+            //                 // TODO: check the type to know which register type to use. Or how much memory to load
+            //                 sb.AppendLine($"\tldr\tw{next_arg_register++}, [sp, #{var_offsets[((Var)expr.value).name]}]");
+            //                 break;
+            //             default:
+            //                 break;
+            //         }
+            //     }
+            //     sb.AppendLine($"\tbl\t_{proc_call.name}");
+            // }
         }
         // function epilogue
         sb.AppendLine($"\tldp\tx29, x30, [sp, #{stack_space_to_allocate - 16}]");

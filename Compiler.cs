@@ -89,8 +89,14 @@ public static class Compiler {
                     return ((char)(long)n.value).ToString();
                 case AST_TYPE.STRING_LITERAL:
                     return (string)n.value;
-                case AST_TYPE.BINARY_OPERATOR:
-                    return ((BinaryOperator)n.value).type.ToString();
+                case AST_TYPE.INFIX_OPERATOR:
+                case AST_TYPE.PREFIX_OPERATOR:
+                case AST_TYPE.POSTFIX_OPERATOR:
+                    return ((TOKEN_TYPE)n.value).ToString();
+                case AST_TYPE.PROCEDURE_CALL: {
+                    var call = ((ProcedureCall)n.value);
+                    return call.name;
+                }
                 default:
                     return n.type.ToString();
             }

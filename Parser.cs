@@ -9,94 +9,70 @@ public class Parser {
 
     List<string> declared_procedures = new();
 
-
     public Parser(string source_code) {
         text = source_code;
         lexer = new(text);
     }
 
     public AstNode parse() {
-        // Recursive descent parser. Each method corresponds to one non-terminal of the grammar
         return translation_unit();
     }
 
     AstNode translation_unit() {
         var translation_unit_node = new AstNode(AST_TYPE.TRANSLATION_UNIT);
         while(!accept(TOKEN_TYPE.EOF)) {
-            procedure_definition_or_declaration(translation_unit_node);
+            translation_unit_node.children.Add(procedure_definition_or_declaration());
         }
         return translation_unit_node;
     }
 
-    void procedure_definition_or_declaration(AstNode parent) {
-        ProcedureDef proc_def;
-        proc_def.return_type.type = type_specifier();
-        proc_def.return_type.indirection_count = declarator();
-        proc_def.name = (string)peek_token(-1).value;
-        proc_def.parameters = new();
+    AstNode procedure_definition_or_declaration() {
+        var type = type_specifier();
+        var indirection_count = declarator();
+        DataType return_type;
+        return_type.type = type;
+        return_type.indirection_count = indirection_count;
 
-        declared_procedures.Add(proc_def.name);
-        var node = new AstNode(AST_TYPE.PROCEDURE_DEF, proc_def);
+        var name = (string)peek_token(-1).value;
+        var parameters = new List<DataType>();
+
+        declared_procedures.Add(name);
 
         expect(TOKEN_TYPE.OPEN_PAREN);
         if(!accept(TOKEN_TYPE.CLOSE_PAREN)) {
-            param_specifier(node);
+            parameters = param_specifier();
             expect(TOKEN_TYPE.CLOSE_PAREN);
         }
 
         // declaration
-        // TODO: add node in ast?
         if(accept(TOKEN_TYPE.SEMICOLON)){
-            return;
+            ProcedureDecl proc_decl;
+            proc_decl.name = name;
+            proc_decl.return_type = return_type;
+            proc_decl.parameters = parameters;
+            return new AstNode(AST_TYPE.PROCEDURE_DECL, proc_decl);
         }
         // definition
-        else {
-            parent.children.Add(node);
-        }
-        compound_statement(node);
-        // expect(TOKEN_TYPE.OPEN_CURLY);
-        // while(!accept(TOKEN_TYPE.CLOSE_CURLY))
-        //     test_procedure_call(proc_def_node);
+        ProcedureDef proc_def;
+        proc_def.name = name;
+        proc_def.return_type = return_type;
+        proc_def.parameters = parameters;
+        proc_def.body = compound_statement();
+        return new AstNode(AST_TYPE.PROCEDURE_DEF, proc_def);
     }
 
-    void param_specifier(AstNode parent) {
-        DataType param_type;
-        param_type.type = type_specifier();
-        param_type.indirection_count = declarator();
-        Compiler.assert(parent.type == AST_TYPE.PROCEDURE_DEF, "param specifier should only be called with procedure definition");
-        ((ProcedureDef)parent.value).parameters.Add(param_type);
-        if(accept(TOKEN_TYPE.COMMA)) param_specifier(parent);
+    List<DataType> param_specifier() {
+        var parameters = new List<DataType>();
+        do {
+            DataType parameter;
+            parameter.type = type_specifier();
+            parameter.indirection_count = declarator();
+            parameters.Add(parameter);
+        } while(accept(TOKEN_TYPE.COMMA));
+        return parameters;
+        // if(accept(TOKEN_TYPE.COMMA)) param_specifier(parent);
+        // Compiler.assert(parent.type == AST_TYPE.PROCEDURE_DEF, "param specifier should only be called with procedure definition");
     }
-
-    // void test_procedure_call(AstNode parent) {
-    //     ProcedureCall proc_call;
-    //     // this function should be deleted later, just for some testing
-    //     expect(TOKEN_TYPE.IDENTIFIER);
-    //     proc_call.name = (string)peek_token(-1).value;
-    //     if(!declared_procedures.Contains(proc_call.name)) {
-    //         parse_error($"Use of undeclared identifier \"{proc_call.name}\"", peek_token(-1));
-    //     }
-    //     var node = new AstNode(AST_TYPE.PROCEDURE_CALL, proc_call);
-    //     parent.children.Add(node);
-    //
-    //     expect(TOKEN_TYPE.OPEN_PAREN);
-    //     while(!accept(TOKEN_TYPE.CLOSE_PAREN)) {
-    //         if(accept(TOKEN_TYPE.IDENTIFIER)    ||
-    //            accept(TOKEN_TYPE.INT_LITERAL)   ||
-    //            accept(TOKEN_TYPE.FLOAT_LITERAL) ||
-    //            accept(TOKEN_TYPE.CHAR_LITERAL)  ||
-    //            accept(TOKEN_TYPE.STRING_LITERAL)) {
-    //             Arg arg;
-    //             arg.token = peek_token(-1);
-    //             node.children.Add(new AstNode(AST_TYPE.ARG, arg));
-    //         }
-    //         if(accept(TOKEN_TYPE.COMMA)) continue;
-    //
-    //         expect(TOKEN_TYPE.CLOSE_PAREN);
-    //         break;
-    //     }
-    //     expect(TOKEN_TYPE.SEMICOLON);
-    // }
 
     DATA_TYPE type_specifier() {
         if(accept(TOKEN_TYPE.KEYWORD_UNSIGNED)) {
@@ -144,227 +120,299 @@ public class Parser {
         return indirection_count;
     }
 
-    void compound_statement(AstNode parent) {
+    AstNode compound_statement() {
+        var ret = new AstNode(AST_TYPE.COMPOUND_STATEMENT);
         expect(TOKEN_TYPE.OPEN_CURLY);
         while(!accept(TOKEN_TYPE.CLOSE_CURLY))
-            statement(parent);
+            ret.children.Add(statement());
+        return ret;
     }
 
-    void declaration(AstNode parent) {
+    AstNode declaration() {
         VarDecl var_decl;
         var_decl.type.type = type_specifier();
         var_decl.type.indirection_count = declarator();
         var_decl.name = (string)peek_token(-1).value;
-        var node = new AstNode(AST_TYPE.VAR_DECL, var_decl);
-        parent.children.Add(node);
+        var ret = new AstNode(AST_TYPE.VAR_DECL, var_decl);
         if(accept(TOKEN_TYPE.EQUALS)) {
-            // TODO: this should be an expression
-            expression(node);
-            // if(accept(TOKEN_TYPE.INT_LITERAL)) {
-            //     DATA_TYPE[] int_types = {
-            //         DATA_TYPE.CHAR,
-            //         DATA_TYPE.SHORT,
-            //         DATA_TYPE.INT,
-            //         DATA_TYPE.LONG,
-            //         DATA_TYPE.UNSIGNED_CHAR,
-            //         DATA_TYPE.UNSIGNED_SHORT,
-            //         DATA_TYPE.UNSIGNED_INT,
-            //         DATA_TYPE.UNSIGNED_LONG
-            //     };
-            //     if(!int_types.Contains(var_decl.type.type))
-            //         parse_error($"Cannot assign integer literal to variable of type: {var_decl.type.type}", peek_token(-1));
-            // }
-            // else if(accept(TOKEN_TYPE.FLOAT_LITERAL)) {
-            //     DATA_TYPE[] floating_point_lit = {
-            //         DATA_TYPE.FLOAT,
-            //         DATA_TYPE.DOUBLE
-            //     };
-            //     if(!floating_point_lit.Contains(var_decl.type.type))
-            //         parse_error($"Cannot assign floating point literal to variable of type: {var_decl.type.type}", peek_token(-1));
-            // }
-            // else {
-            //     parse_error($"Cannot assign token of type {peek_token(-1).type} to variable of type {var_decl.type.type}", peek_token(-1));
-            // }
-            // var_decl.init_value = peek_token(-1).value;
+            ret.children.Add(expression(0, TOKEN_TYPE.SEMICOLON));
         }
-        expect(TOKEN_TYPE.SEMICOLON);
+        return ret;
     }
 
-    void statement(AstNode parent) {
-        if(is_datatype(peek_token().type)) declaration(parent);
-        else expression(parent);//test_procedure_call(parent);
-    }
+    AstNode statement() {
+        AstNode ret;
+        var t = peek_token();
+        // TODO: What do we pass as the parent? Do we still wanna do it like this? Or simply return nodes from the functions instead?
+        // where do we add the expressions
+        switch(t.type) {
+            case TOKEN_TYPE.SEMICOLON:
+                ret = new AstNode(AST_TYPE.EMPTY_STATEMENT);
+                consume_token();
+                break;
+            case TOKEN_TYPE.KEYWORD_IF:
+                ret = if_statement();
+                break;
+            case TOKEN_TYPE.KEYWORD_DO:
+                ret = do_statement();
+                break;
+            case TOKEN_TYPE.KEYWORD_WHILE:
+                ret = while_statement();
+                break;
+            case TOKEN_TYPE.KEYWORD_FOR:
+                ret = for_statement();
+                break;
+            // TODO: switch statement... how are they done?
+            // case TOKEN_TYPE.KEYWORD_SWITCH:
+            //     ret = switch_statement();
+            //     break;
+            case TOKEN_TYPE.KEYWORD_GOTO:
+                consume_token();
+                ret = new AstNode(AST_TYPE.GOTO, peek_token().value);
+                expect(TOKEN_TYPE.IDENTIFIER);
+                expect(TOKEN_TYPE.SEMICOLON);
+                break;
 
-    // TODO: operator precedence
-    void expression(AstNode parent) {
-        AstNode left_hand_side;
-        if(accept(TOKEN_TYPE.IDENTIFIER)) {
-            string name = (string)peek_token(-1).value;
-            // procedure call
-            if(accept(TOKEN_TYPE.OPEN_PAREN)) {
-                ProcedureCall proc_call;
-                proc_call.name = name;
-                proc_call.args = new();
-                left_hand_side = new AstNode(AST_TYPE.PROCEDURE_CALL, proc_call);
-                if(!accept(TOKEN_TYPE.CLOSE_PAREN)) {
-                    arguments(left_hand_side);
-                    expect(TOKEN_TYPE.CLOSE_PAREN);
+            case TOKEN_TYPE.OPEN_CURLY:
+                ret = compound_statement();
+                break;
+
+            default:
+                if(is_datatype(t.type)) {
+                    ret = declaration();
+                    expect(TOKEN_TYPE.SEMICOLON);
                 }
-            }
-            // variable
-            else {
-                Var variable;
-                variable.name = name;
-                left_hand_side = new AstNode(AST_TYPE.VAR, variable);
-            }
+                else if(t.type == TOKEN_TYPE.IDENTIFIER && peek_token(1).type == TOKEN_TYPE.COLON) {
+                    ret = new AstNode(AST_TYPE.LABEL, peek_token().value);
+                    // Or consume_token(); x2. But this is a little clearer. Even though it's two unnecessary checks
+                    expect(TOKEN_TYPE.IDENTIFIER);
+                    expect(TOKEN_TYPE.COLON);
+                }
+                else {
+                    ret = expression(0, TOKEN_TYPE.SEMICOLON);
+                    expect(TOKEN_TYPE.SEMICOLON);
+                }
+                break;
         }
-        else if(accept(TOKEN_TYPE.INT_LITERAL)) {
-            left_hand_side = new AstNode(AST_TYPE.INT_LITERAL, (long)peek_token(-1).value);
+        return ret;
+    }
+
+    // AstNode switch_statement() {
+    //     expect(TOKEN_TYPE.KEYWORD_SWITCH);
+    // }
+
+    AstNode if_statement() {
+        AstNode ret = new AstNode(AST_TYPE.IF_STATEMENT);
+        expect(TOKEN_TYPE.KEYWORD_IF);
+        expect(TOKEN_TYPE.OPEN_PAREN);
+        IfStmnt if_stmnt;
+        if_stmnt.condition = expression(0, TOKEN_TYPE.CLOSE_PAREN);
+        expect(TOKEN_TYPE.CLOSE_PAREN);
+
+        ret.children.Add(statement());
+        if(accept(TOKEN_TYPE.KEYWORD_ELSE)) {
+            ret.children.Add(statement());
         }
-        else if(accept(TOKEN_TYPE.FLOAT_LITERAL)) {
-            left_hand_side = new AstNode(AST_TYPE.FLOAT_LITERAL, (float)peek_token(-1).value);
+        ret.value = if_stmnt;
+        return ret;
+    }
+
+    AstNode do_statement() {
+        AstNode ret = new AstNode(AST_TYPE.DO_STATEMENT);
+        expect(TOKEN_TYPE.KEYWORD_DO);
+        ret.children.Add(statement());
+        expect(TOKEN_TYPE.KEYWORD_WHILE);
+        expect(TOKEN_TYPE.OPEN_PAREN);
+        DoStmnt do_stmnt;
+        do_stmnt.condition = expression(0, TOKEN_TYPE.CLOSE_PAREN);
+        ret.value = do_stmnt;
+        expect(TOKEN_TYPE.CLOSE_PAREN);
+        expect(TOKEN_TYPE.SEMICOLON);
+        return ret;
+    }
+
+    AstNode while_statement() {
+        AstNode ret = new AstNode(AST_TYPE.WHILE_STATEMENT);
+        expect(TOKEN_TYPE.KEYWORD_WHILE);
+        expect(TOKEN_TYPE.OPEN_PAREN);
+        WhileStmnt while_stmnt;
+        while_stmnt.condition = expression(0, TOKEN_TYPE.CLOSE_PAREN);
+        expect(TOKEN_TYPE.CLOSE_PAREN);
+        ret.value = while_stmnt;
+        ret.children.Add(statement());
+        return ret;
+    }
+
+    AstNode for_statement() {
+        AstNode ret = new AstNode(AST_TYPE.FOR_STATEMENT);
+        expect(TOKEN_TYPE.KEYWORD_FOR);
+        expect(TOKEN_TYPE.OPEN_PAREN);
+
+        ForStmnt for_stmnt;
+        for_stmnt.before = expression(0, TOKEN_TYPE.SEMICOLON);
+        expect(TOKEN_TYPE.SEMICOLON);
+
+        for_stmnt.condition = expression(0, TOKEN_TYPE.SEMICOLON);
+        expect(TOKEN_TYPE.SEMICOLON);
+
+        for_stmnt.each_iter = expression(0, TOKEN_TYPE.CLOSE_PAREN);
+        expect(TOKEN_TYPE.CLOSE_PAREN);
+        ret.value = for_stmnt;
+        ret.children.Add(statement());
+        return ret;
+    }
+
+    // terminating_token_types are checked before infix operators, which means infix operators can be overriden.
+    // For example token type COMMA may be an infix operator but in case of an expression within a function call it should terminate the expression
+    // TODO: postfix operators: ++ -- []
+    // prefix operators: cast
+    // infix operators: , . ->
+    AstNode expression(int min_bp, params TOKEN_TYPE[] terminating_token_types) {
+        var t = consume_token();
+        AstNode left_hand_side;
+        switch(t.type) {
+            case TOKEN_TYPE.IDENTIFIER:
+                var name = (string)t.value;
+                if(accept(TOKEN_TYPE.OPEN_PAREN)) {
+                    ProcedureCall proc_call;
+                    proc_call.name = name;
+                    left_hand_side = new AstNode(AST_TYPE.PROCEDURE_CALL, proc_call);
+                    if(!accept(TOKEN_TYPE.CLOSE_PAREN)) {
+                        left_hand_side.children = arguments();
+                        expect(TOKEN_TYPE.CLOSE_PAREN);
+                    }
+                }
+                // variable
+                else {
+                    Var variable;
+                    variable.name = name;
+                    left_hand_side = new AstNode(AST_TYPE.VAR, variable);
+                }
+                break;
+            case TOKEN_TYPE.INT_LITERAL:
+                left_hand_side = new AstNode(AST_TYPE.INT_LITERAL, (long)t.value);
+                break;
+            case TOKEN_TYPE.FLOAT_LITERAL:
+                left_hand_side = new AstNode(AST_TYPE.FLOAT_LITERAL, (float)t.value);
+                break;
+            case TOKEN_TYPE.CHAR_LITERAL:
+                left_hand_side = new AstNode(AST_TYPE.CHAR_LITERAL, (long)t.value);
+                break;
+            case TOKEN_TYPE.STRING_LITERAL:
+                left_hand_side = new AstNode(AST_TYPE.STRING_LITERAL, (string)t.value);
+                break;
+            default:
+                var op = new AstNode(AST_TYPE.PREFIX_OPERATOR, t.type);
+                var r_bp = get_prefix_binding_power(t.type);
+
+                if(r_bp == -1)
+                    parse_error("Expected identifier, literal or prefix operator", peek_token(-1));
+
+                var right_hand_side = expression(r_bp, terminating_token_types);
+                op.children.Add(right_hand_side);
+                left_hand_side = op;
+                break;
         }
-        else if(accept(TOKEN_TYPE.CHAR_LITERAL)) {
-            left_hand_side = new AstNode(AST_TYPE.CHAR_LITERAL, (long)peek_token(-1).value);
-        }
-        else if(accept(TOKEN_TYPE.STRING_LITERAL)) {
-            left_hand_side = new AstNode(AST_TYPE.STRING_LITERAL, (string)peek_token(-1).value);
-        }
-        else {
-            parse_error("Exprected identifier or literal", peek_token(-1));
-            // unreachable
-            left_hand_side = null!;
-        }
-        if(is_binary_operator(peek_token().type)) {
-            BinaryOperator bin_op;
-            bin_op.type = consume_token().type;
-            AstNode op = new(AST_TYPE.BINARY_OPERATOR, bin_op);
-            parent.children.Add(op);
+        while(true) {
+            if(terminating_token_types.Contains(peek_token().type))
+                break;
+
+            var op_type = peek_token().type;
+            var (l_bp, r_bp) = get_infix_binding_power(op_type);
+
+            if((l_bp, r_bp) == (-1,-1))
+                parse_error($"Expected infix operator", peek_token());
+
+            if(l_bp < min_bp) break;
+
+            consume_token();
+            var right_hand_side = expression(r_bp, terminating_token_types);
+
+            var op = new AstNode(AST_TYPE.INFIX_OPERATOR, op_type);
             op.children.Add(left_hand_side);
-            expression(op);
+            op.children.Add(right_hand_side);
+            left_hand_side = op;
         }
-        else {
-            parent.children.Add(left_hand_side);
-            expect(TOKEN_TYPE.SEMICOLON);
+        return left_hand_side;
+    }
+
+    // return -1 if its not a valid prefix operator
+    int get_prefix_binding_power(TOKEN_TYPE t) {
+        switch(t) {
+            // TODO: (cast)
+            case TOKEN_TYPE.PLUS:
+            case TOKEN_TYPE.MINUS:
+            case TOKEN_TYPE.PLUS_PLUS:
+            case TOKEN_TYPE.MINUS_MINUS:
+            case TOKEN_TYPE.EXCLAM:
+            case TOKEN_TYPE.NOT:
+            case TOKEN_TYPE.STAR:
+            case TOKEN_TYPE.AND:
+            case TOKEN_TYPE.KEYWORD_SIZEOF: return(23);
+            default:
+                return -1;
         }
     }
 
-    void arguments(AstNode parent) {
-        Compiler.assert(parent.type == AST_TYPE.PROCEDURE_CALL, "Should only be called with procedure call");
-        // We don't know the type yet
-        AstNode arg = new((AST_TYPE)(-1));
-        ((ProcedureCall)parent.value).args.Add(arg);
-        expression(arg);
-        if(accept(TOKEN_TYPE.COMMA))
-            arguments(parent);
+    // return (-1, -1) if it's not a valid infix operator
+    (int, int) get_infix_binding_power(TOKEN_TYPE t) {
+        switch(t) {
+            // TODO: comma
+            // Low binding power, associativity right to left
+            case TOKEN_TYPE.EQUALS:                           // =
+            case TOKEN_TYPE.PLUS_EQUALS:                      // +=
+            case TOKEN_TYPE.MINUS_EQUALS:                     // -=
+            case TOKEN_TYPE.STAR_EQUALS:                      // *=
+            case TOKEN_TYPE.SLASH_EQUALS:                     // /=
+            case TOKEN_TYPE.PROCENT_EQUALS:                   // %=
+            case TOKEN_TYPE.RIGHT_SHIFT_EQUALS:               // >>=
+            case TOKEN_TYPE.LEFT_SHIFT_EQUALS:                // <<=
+            case TOKEN_TYPE.AND_EQUALS:                       // &=
+            case TOKEN_TYPE.OR_EQUALS:                        // |=
+            case TOKEN_TYPE.XOR_EQUALS: return (2, 1);        // ^=
+
+            // left to right associativity
+            case TOKEN_TYPE.OR_OR:   return (3, 4);           // ||
+            case TOKEN_TYPE.AND_AND: return (5, 6);           // &&
+            case TOKEN_TYPE.OR:      return (7, 8);           // |
+            case TOKEN_TYPE.XOR:     return (9, 10);          // ^
+            case TOKEN_TYPE.AND:     return (11, 12);         // &
+
+            case TOKEN_TYPE.EXCLAM_EQUALS:                    // !=
+            case TOKEN_TYPE.EQUALS_EQUALS: return (13, 14);   // ==
+
+            case TOKEN_TYPE.SMALLER:                          // <
+            case TOKEN_TYPE.SMALLER_EQUALS:                   // <=
+            case TOKEN_TYPE.GREATER:                          // >
+            case TOKEN_TYPE.GREATER_EQUALS: return (15, 16);  // >=
+
+            case TOKEN_TYPE.GREATER_GREATER:                  // >>
+            case TOKEN_TYPE.SMALLER_SMALLER: return (17, 18); // <<
+
+            case TOKEN_TYPE.PLUS:                             // +
+            case TOKEN_TYPE.MINUS: return (19, 20);           // -
+
+            case TOKEN_TYPE.STAR:                             // *
+            case TOKEN_TYPE.SLASH:                            // /
+            case TOKEN_TYPE.PROCENT: return (21, 22);         // %
+            default:
+                return (-1,-1);
+        }
     }
 
-    // Gets the data type from the most recent collected token, if the most recent token is not a type then return -1
-    // DATA_TYPE get_data_type_from_prev_tokens() {
-    //     switch(peek_token(-1).type) {
-    //         case TOKEN_TYPE.KEYWORD_UNSIGNED: {
-    //             switch(peek_token(-2).type) {
-    //                 case TOKEN_TYPE.KEYWORD_CHAR:
-    //                     return DATA_TYPE.UNSIGNED_CHAR;
-    //                 case TOKEN_TYPE.KEYWORD_SHORT:
-    //                     return DATA_TYPE.UNSIGNED_SHORT;
-    //                 case TOKEN_TYPE.KEYWORD_INT:
-    //                     return DATA_TYPE.UNSIGNED_INT;
-    //                 case TOKEN_TYPE.KEYWORD_LONG:
-    //                     return DATA_TYPE.UNSIGNED_LONG;
-    //                 default:
-    //                     return (DATA_TYPE)(-1);
-    //             }
-    //         }
-    //         case TOKEN_TYPE.KEYWORD_CHAR: {
-    //             if(next_token_idx - 2 >= 0) {
-    //                 if(peek_token(-2).type == TOKEN_TYPE.KEYWORD_UNSIGNED)
-    //                     return DATA_TYPE.UNSIGNED_CHAR;
-    //             }
-    //             return DATA_TYPE.CHAR;
-    //         }
-    //         case TOKEN_TYPE.KEYWORD_SHORT: {
-    //             if(next_token_idx - 2 >= 0) {
-    //                 if(peek_token(-2).type == TOKEN_TYPE.KEYWORD_UNSIGNED)
-    //                     return DATA_TYPE.UNSIGNED_SHORT;
-    //             }
-    //             return DATA_TYPE.SHORT;
-    //         }
-    //         case TOKEN_TYPE.KEYWORD_INT: {
-    //             if(next_token_idx - 2 >= 0) {
-    //                 if(peek_token(-2).type == TOKEN_TYPE.KEYWORD_UNSIGNED)
-    //                     return DATA_TYPE.UNSIGNED_INT;
-    //             }
-    //             return DATA_TYPE.INT;
-    //         }
-    //         case TOKEN_TYPE.KEYWORD_LONG: {
-    //             if(next_token_idx - 2 >= 0) {
-    //                 if(peek_token(-2).type == TOKEN_TYPE.KEYWORD_UNSIGNED)
-    //                     return DATA_TYPE.UNSIGNED_LONG;
-    //             }
-    //             return DATA_TYPE.LONG;
-    //         }
-    //         case TOKEN_TYPE.KEYWORD_FLOAT:
-    //             return DATA_TYPE.FLOAT;
-    //         case TOKEN_TYPE.KEYWORD_DOUBLE:
-    //             return DATA_TYPE.DOUBLE;
-    //         case TOKEN_TYPE.KEYWORD_VOID:
-    //             return DATA_TYPE.VOID;
-    //         default:
-    //             return (DATA_TYPE)(-1);
-    //     }
+    // void arguments(AstNode parent) {
+    //     Compiler.assert(parent.type == AST_TYPE.PROCEDURE_CALL, "Should only be called with procedure call");
+    //     parent.children.Add(expression(0, TOKEN_TYPE.COMMA, TOKEN_TYPE.CLOSE_PAREN));
+    //     if(accept(TOKEN_TYPE.COMMA))
+    //         arguments(parent);
     // }
 
-
-    // TOKEN_TYPE accept_binary_operator(AstNode parent) {
-    //     if(accept(TOKEN_TYPE.PLUS)) return true;
-    //     else if(accept(TOKEN_TYPE.MINUS)) return true;
-    //     else if(accept(TOKEN_TYPE.STAR)) return true;
-    //     else if(accept(TOKEN_TYPE.SLASH)) return true;
-    //     else if(accept(TOKEN_TYPE.PROCENT)) return true;
-    //     else if(accept(TOKEN_TYPE.SMALLER)) return true;
-    //     else if(accept(TOKEN_TYPE.GREATER)) return true;
-    //     else if(accept(TOKEN_TYPE.GREATER_EQUALS)) return true;
-    //     else if(accept(TOKEN_TYPE.SMALLER_EQUALS)) return true;
-    //     else if(accept(TOKEN_TYPE.EQUALS_EQUALS)) return true;
-    //     else if(accept(TOKEN_TYPE.EXCLAM_EQUALS)) return true;
-    //     else if(accept(TOKEN_TYPE.AND_AND)) return true;
-    //     else if(accept(TOKEN_TYPE.OR_OR)) return true;
-    //     else if(accept(TOKEN_TYPE.SMALLER_SMALLER)) return true;
-    //     else if(accept(TOKEN_TYPE.GREATER_GREATER)) return true;
-    //     else if(accept(TOKEN_TYPE.AND)) return true;
-    //     else if(accept(TOKEN_TYPE.OR)) return true;
-    //     else if(accept(TOKEN_TYPE.XOR)) return true;
-    //     else return (TOKEN_TYPE)(-1);
-    // }
-
-    // static int get_operator_precedence(TOKEN_TYPE op) {
-    //     switch(op) {
-    //         case TOKEN_TYPE.PLUS
-    //         default: Compiler.assert(false, "Not an operator type");
-    //     }
-    // }
-    static bool is_binary_operator(TOKEN_TYPE t) {
-        return t == TOKEN_TYPE.PLUS            ||
-               t == TOKEN_TYPE.MINUS           ||
-               t == TOKEN_TYPE.STAR            ||
-               t == TOKEN_TYPE.SLASH           ||
-               t == TOKEN_TYPE.PROCENT         ||
-               t == TOKEN_TYPE.SMALLER         ||
-               t == TOKEN_TYPE.GREATER         ||
-               t == TOKEN_TYPE.EQUALS          ||
-               t == TOKEN_TYPE.EQUALS_EQUALS   ||
-               t == TOKEN_TYPE.GREATER_EQUALS  ||
-               t == TOKEN_TYPE.SMALLER_EQUALS  ||
-               t == TOKEN_TYPE.EQUALS_EQUALS   ||
-               t == TOKEN_TYPE.EXCLAM_EQUALS   ||
-               t == TOKEN_TYPE.AND_AND         ||
-               t == TOKEN_TYPE.OR_OR           ||
-               t == TOKEN_TYPE.SMALLER_SMALLER ||
-               t == TOKEN_TYPE.GREATER_GREATER ||
-               t == TOKEN_TYPE.AND             ||
-               t == TOKEN_TYPE.OR              ||
-               t == TOKEN_TYPE.XOR;
+    List<AstNode> arguments() {
+        var ret = new List<AstNode>();
+        do {
+            ret.Add(expression(0, TOKEN_TYPE.COMMA, TOKEN_TYPE.CLOSE_PAREN));
+        } while(accept(TOKEN_TYPE.COMMA));
+        return ret;
     }
 
     static bool is_datatype(TOKEN_TYPE t) {
@@ -444,21 +492,6 @@ public class Parser {
 
         int idx_in_line = idx - line_start;
         string line = text[line_start..line_end];
-        // StringBuilder sb = new(line);
-        // sb.Insert(idx_in_line, '[');
-        // if(idx_in_line + 1 >= line.Length) sb.Append(']');
-        // else sb.Insert(idx_in_line + 2, ']');
         return line;
     }
-    // void expect_one_of_these(params TOKEN_TYPE[] types) {
-    //     bool found_expected = false;
-    //     foreach(var type in types) {
-    //         if(accept(type)) found_expected = true;
-    //     }
-    //     if(!found_expected) {
-    //         StringBuilder sb = new();
-    //         sb.AppendJoin(", ", types);
-    //         parse_error($"Expected one of the following: {sb.ToString()}, but got {peek_token().type}", peek_token());
-    //     }
-    // }
 }

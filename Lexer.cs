@@ -390,7 +390,7 @@ public enum TOKEN_TYPE {
     MINUS,               // -
     MINUS_MINUS,         // --
     MINUS_EQUALS,        // -=
-    ARROW,               //
+    ARROW,               // ->
 
     STAR,                // *
     STAR_EQUALS,         // *=
