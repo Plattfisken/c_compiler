@@ -1,7 +1,6 @@
 using System.Globalization;
-using System.Text;
 
-namespace compiler_csharp;
+namespace c_compiler;
 
 public class Lexer {
     string text;
@@ -118,7 +117,7 @@ public class Lexer {
 
     Token get_identifier_or_keyword() {
         int token_start = cur - 1;
-        while(!is_white_space(peek_char()) && !is_lexeme_keyword_or_reserved_symbol(peek_char().ToString(), out var _)) {
+        while(peek_char() != 0 && !is_white_space(peek_char()) && !is_lexeme_keyword_or_reserved_symbol(peek_char().ToString(), out var _)) {
             consume_char();
         }
         string value = text[token_start .. cur];

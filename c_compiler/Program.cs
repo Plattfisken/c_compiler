@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics;
 
-namespace compiler_csharp;
+namespace c_compiler;
 
 internal static class Program
 {

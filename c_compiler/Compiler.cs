@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace compiler_csharp;
+namespace c_compiler;
 
 public static class Compiler {
     public static void assert(bool exp, string message) {

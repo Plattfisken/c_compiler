@@ -1,4 +1,4 @@
-namespace compiler_csharp;
+namespace c_compiler;
 
 public class Parser {
     string text;
@@ -136,7 +136,7 @@ public class Parser {
         var_decl.name = (string)peek_token(-1).value;
         var ret = new AstNode(AST_TYPE.VAR_DECL, var_decl);
         if(accept(TOKEN_TYPE.EQUALS)) {
-            ret.children.Add(expression(0, TOKEN_TYPE.SEMICOLON));
+            ret.children.Add(expression(0));
         }
         return ret;
     }
@@ -190,7 +190,7 @@ public class Parser {
                     expect(TOKEN_TYPE.COLON);
                 }
                 else {
-                    ret = expression(0, TOKEN_TYPE.SEMICOLON);
+                    ret = expression(0);
                     expect(TOKEN_TYPE.SEMICOLON);
                 }
                 break;
@@ -207,7 +207,7 @@ public class Parser {
         expect(TOKEN_TYPE.KEYWORD_IF);
         expect(TOKEN_TYPE.OPEN_PAREN);
         IfStmnt if_stmnt;
-        if_stmnt.condition = expression(0, TOKEN_TYPE.CLOSE_PAREN);
+        if_stmnt.condition = expression(0);
         expect(TOKEN_TYPE.CLOSE_PAREN);
 
         ret.children.Add(statement());
@@ -225,7 +225,7 @@ public class Parser {
         expect(TOKEN_TYPE.KEYWORD_WHILE);
         expect(TOKEN_TYPE.OPEN_PAREN);
         DoStmnt do_stmnt;
-        do_stmnt.condition = expression(0, TOKEN_TYPE.CLOSE_PAREN);
+        do_stmnt.condition = expression(0);
         ret.value = do_stmnt;
         expect(TOKEN_TYPE.CLOSE_PAREN);
         expect(TOKEN_TYPE.SEMICOLON);
@@ -237,7 +237,7 @@ public class Parser {
         expect(TOKEN_TYPE.KEYWORD_WHILE);
         expect(TOKEN_TYPE.OPEN_PAREN);
         WhileStmnt while_stmnt;
-        while_stmnt.condition = expression(0, TOKEN_TYPE.CLOSE_PAREN);
+        while_stmnt.condition = expression(0);
         expect(TOKEN_TYPE.CLOSE_PAREN);
         ret.value = while_stmnt;
         ret.children.Add(statement());
@@ -250,13 +250,13 @@ public class Parser {
         expect(TOKEN_TYPE.OPEN_PAREN);
 
         ForStmnt for_stmnt;
-        for_stmnt.before = expression(0, TOKEN_TYPE.SEMICOLON);
+        for_stmnt.before = expression(0);
         expect(TOKEN_TYPE.SEMICOLON);
 
-        for_stmnt.condition = expression(0, TOKEN_TYPE.SEMICOLON);
+        for_stmnt.condition = expression(0);
         expect(TOKEN_TYPE.SEMICOLON);
 
-        for_stmnt.each_iter = expression(0, TOKEN_TYPE.CLOSE_PAREN);
+        for_stmnt.each_iter = expression(0);
         expect(TOKEN_TYPE.CLOSE_PAREN);
         ret.value = for_stmnt;
         ret.children.Add(statement());
@@ -266,17 +266,15 @@ public class Parser {
     List<AstNode> arguments() {
         var ret = new List<AstNode>();
         do {
-            ret.Add(expression(0, TOKEN_TYPE.COMMA, TOKEN_TYPE.CLOSE_PAREN));
+            ret.Add(expression(0));
         } while(accept(TOKEN_TYPE.COMMA));
         return ret;
     }
 
-    // terminating_token_types are checked before infix operators, which means infix operators can be overriden.
-    // For example token type COMMA may be an infix operator but in case of an expression within a function call it should terminate the expression
-    // TODO: postfix operators: ++ -- []
+    // TODO:
     // prefix operators: cast
     // infix operators: , . ->
-    public AstNode expression(int min_bp, params TOKEN_TYPE[] terminating_token_types) {
+    public AstNode expression(int min_bp) {
         var t = consume_token();
         AstNode left_hand_side;
         switch(t.type) {
@@ -299,7 +297,7 @@ public class Parser {
                 }
                 break;
             case TOKEN_TYPE.OPEN_PAREN:
-                left_hand_side = expression(0, TOKEN_TYPE.CLOSE_PAREN);
+                left_hand_side = expression(0);
                 expect(TOKEN_TYPE.CLOSE_PAREN);
                 break;
             case TOKEN_TYPE.INT_LITERAL:
@@ -321,16 +319,17 @@ public class Parser {
                 if(r_bp == -1)
                     parse_error("Expected identifier, literal or prefix operator", peek_token(-1));
 
-                var right_hand_side = expression(r_bp, terminating_token_types);
+                var right_hand_side = expression(r_bp);
                 op.children.Add(right_hand_side);
                 left_hand_side = op;
                 break;
         }
         while(true) {
-            if(terminating_token_types.Contains(peek_token().type))
-                break;
+            // if(terminating_token_types.Contains(peek_token().type))
+            //     break;
 
             var op_type = peek_token().type;
+            
             var l_bp = get_postfix_binding_power(op_type);
             if(l_bp != -1) {
                 if(l_bp < min_bp) break;
@@ -340,20 +339,21 @@ public class Parser {
                 left_hand_side = postfix_op;
                 continue;
             }
+            
             (l_bp, var r_bp) = get_infix_binding_power(op_type);
-
-            if((l_bp, r_bp) == (-1,-1))
-                parse_error($"Expected infix operator", peek_token());
-
-            if(l_bp < min_bp) break;
-
-            consume_token();
-            var right_hand_side = expression(r_bp, terminating_token_types);
-
-            var op = new AstNode(AST_TYPE.INFIX_OPERATOR, op_type);
-            op.children.Add(left_hand_side);
-            op.children.Add(right_hand_side);
-            left_hand_side = op;
+            if ((l_bp, r_bp) != (-1, -1)) {
+                if(l_bp < min_bp) break;
+                
+                consume_token();
+                var right_hand_side = expression(r_bp);
+                
+                var op = new AstNode(AST_TYPE.INFIX_OPERATOR, op_type);
+                op.children.Add(left_hand_side);
+                op.children.Add(right_hand_side);
+                left_hand_side = op;
+                continue; 
+            }
+            break;
         }
         return left_hand_side;
     }

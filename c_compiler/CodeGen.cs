@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace compiler_csharp;
+namespace c_compiler;
 public class CodeGen {
     List<string> str_lits_to_add = new();
     StringBuilder sb = new();

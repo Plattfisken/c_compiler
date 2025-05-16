@@ -1,4 +1,4 @@
-namespace compiler_csharp;
+namespace c_compiler;
 
 // TODO: we should find a better way to do this than this fake tagged union nonsense. If only I was using a good programming language...
 // potentially records or classes all inheriting from the root AstNode and then use the runtime typechecking to find the types, as sad as that makes me
