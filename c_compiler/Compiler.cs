@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 
 namespace c_compiler;
@@ -111,4 +112,5 @@ public static class Compiler {
         }
         return code_gen(ast);
     }
+
 }

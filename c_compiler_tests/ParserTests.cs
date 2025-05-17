@@ -7,22 +7,33 @@ namespace Tests;
 public class ParserTests
 {
     [Theory]
-    [InlineData("1", "(1)")] 
-    [InlineData("(((0)))", "(0)")] 
-    [InlineData("1 + 2", "(+ 1 2)")] 
-    [InlineData("a + b * c * d + e", "(+ (+ a (* (* b c) d)) e)")] 
-    [InlineData("34 - 56", "(- 34 56)")] 
-    [InlineData("879 * 30", "(* 879 30)")] 
-    [InlineData("5 / 2", "(/ 5 2)")] 
-    [InlineData("2 * 3 + 4", "(+ (* 2 3) 4)")] 
-    [InlineData("2 + 3 * 4", "(+ 2 (* 3 4))")] 
-    [InlineData("2 + 3 + 4;", "(+ (+ 2 3) 4)")] 
+    [InlineData("1", "(1)")]
+    [InlineData("(((0)))", "(0)")]
+    [InlineData("1 + 2", "(+ 1 2)")]
+    [InlineData("a + b * c * d + e", "(+ (+ a (* (* b c) d)) e)")]
+    [InlineData("34 - 56", "(- 34 56)")]
+    [InlineData("879 * 30", "(* 879 30)")]
+    [InlineData("5 / 2", "(/ 5 2)")]
+    [InlineData("2 * 3 + 4", "(+ (* 2 3) 4)")]
+    [InlineData("2 + 3 * 4", "(+ 2 (* 3 4))")]
+    [InlineData("2 + 3 + 4;", "(+ (+ 2 3) 4)")]
+    [InlineData("1 + 2 * 3", "(+ 1 (* 2 3))")]
+    [InlineData("f . g . h", "(. (. f g) h)")]
+    [InlineData(" 1 + 2 + f . g . h * 3 * 4", "(+ (+ 1 2) (* (* (. (. f g) h) 3) 4))")]
+    [InlineData("--1 * 2", "(* (-- 1) 2)")]
+    [InlineData("--f . g", "(-- (. f g))")]
+    [InlineData("x[0][1]", "([ ([ x 0) 1)")]
+    [InlineData("x[a + 2 % 12]", "([ x (+ a (% 2 12)))")]
+    [InlineData( "a ? b : c ? d : e", "(? a b (? c d e))")]
+    [InlineData( "a = b >= 10 ? a : c ? d : e", "(= a (? (>= b 10) a (? c d e)))")]
+    [InlineData( "a = (d + 5, a <= d) ? func(a & b++, *c), 10 : a | b", "(= a (? (, (+ d 5) (<= a d)) (, (func (& a (++ b)) (* c)) 10) (| a b)))")]
+    [InlineData("a = 0 ? b : c = d", "(= a (= (? 0 b c) d))")]
     public void parser_should_return_correct_tree(string expr, string expected_s_expr)
     {
         var parser = new Parser(expr);
         var ast = parser.expression(0);
         var s_expr = ast_to_s_expr(ast);
-        Assert.Equal(s_expr, expected_s_expr);
+        Assert.Equal(expected_s_expr, s_expr);
     }
 
     string ast_to_s_expr(AstNode node)
@@ -30,7 +41,7 @@ public class ParserTests
         var sb = new StringBuilder();
         sb.Append('(');
         if(node.value.GetType() == typeof(TOKEN_TYPE)) 
-            sb.Append(t_type_to_str((TOKEN_TYPE)node.value));
+            sb.Append(Lexer.token_type_to_lexeme((TOKEN_TYPE)node.value));
         else if (node.value.GetType() == typeof(Var))
             sb.Append(((Var)node.value).name);
         else if (node.value.GetType() == typeof(ProcedureCall))
@@ -44,7 +55,7 @@ public class ParserTests
             else
             {
                 if(child.value.GetType() == typeof(TOKEN_TYPE)) 
-                    sb.Append(t_type_to_str((TOKEN_TYPE)child.value));
+                    sb.Append(Lexer.token_type_to_lexeme((TOKEN_TYPE)child.value));
                 else if (child.value.GetType() == typeof(Var))
                     sb.Append(((Var)child.value).name);
                 else if (child.value.GetType() == typeof(ProcedureCall))
@@ -55,18 +66,5 @@ public class ParserTests
         }
         sb.Append(')');
         return sb.ToString();
-
-        string t_type_to_str(TOKEN_TYPE type)
-        {
-            return type switch
-            {
-                TOKEN_TYPE.PLUS => "+",
-                TOKEN_TYPE.MINUS => "-",
-                TOKEN_TYPE.STAR => "*",
-                TOKEN_TYPE.SLASH => "/",
-                TOKEN_TYPE.PROCENT => "%",
-                _ => throw new Exception("unexpected type")
-            };
-        }
     }
 }

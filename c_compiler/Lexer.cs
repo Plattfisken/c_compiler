@@ -357,6 +357,201 @@ public class Lexer {
         }
         return true;
     }
+    
+    public static string token_type_to_lexeme(TOKEN_TYPE t)
+    {
+        return t switch
+        {
+            TOKEN_TYPE.OPEN_PAREN => "(",
+            TOKEN_TYPE.CLOSE_PAREN => ")",
+            TOKEN_TYPE.OPEN_CURLY => "{",
+            TOKEN_TYPE.CLOSE_CURLY => "}",
+            TOKEN_TYPE.OPEN_BRACKET => "[",
+            TOKEN_TYPE.CLOSE_BRACKET => "]",
+
+            TOKEN_TYPE.SEMICOLON => ";",
+            TOKEN_TYPE.COLON => ":",
+            TOKEN_TYPE.DOT => ".",
+            TOKEN_TYPE.COMMA => ",",
+            TOKEN_TYPE.QUESTION_MARK => "?",
+
+            TOKEN_TYPE.EXCLAM => "!",
+            TOKEN_TYPE.EXCLAM_EQUALS => "!=",
+
+            TOKEN_TYPE.PLUS => "+",
+            TOKEN_TYPE.PLUS_PLUS => "++",
+            TOKEN_TYPE.PLUS_EQUALS => "+=",
+
+            TOKEN_TYPE.MINUS => "-",
+            TOKEN_TYPE.MINUS_MINUS => "--",
+            TOKEN_TYPE.MINUS_EQUALS => "-=",
+            TOKEN_TYPE.ARROW => "->",
+
+            TOKEN_TYPE.STAR => "*",
+            TOKEN_TYPE.STAR_EQUALS => "*=",
+
+            TOKEN_TYPE.SLASH => "/",
+            TOKEN_TYPE.SLASH_EQUALS => "/=",
+
+            TOKEN_TYPE.PROCENT => "%",
+            TOKEN_TYPE.PROCENT_EQUALS => "%=",
+
+            TOKEN_TYPE.EQUALS => "=",
+            TOKEN_TYPE.EQUALS_EQUALS => "==",
+            TOKEN_TYPE.SMALLER => "<",
+            TOKEN_TYPE.SMALLER_SMALLER => "<<",
+            TOKEN_TYPE.SMALLER_EQUALS => "<=",
+            TOKEN_TYPE.LEFT_SHIFT_EQUALS => "<<=",
+
+            TOKEN_TYPE.GREATER => ">",
+            TOKEN_TYPE.GREATER_GREATER => ">>",
+            TOKEN_TYPE.GREATER_EQUALS => ">=",
+            TOKEN_TYPE.RIGHT_SHIFT_EQUALS => ">>=",
+
+            TOKEN_TYPE.AND => "&",
+            TOKEN_TYPE.AND_AND => "&&",
+            TOKEN_TYPE.AND_EQUALS => "&=",
+            TOKEN_TYPE.OR => "|",
+            TOKEN_TYPE.OR_OR => "||",
+            TOKEN_TYPE.OR_EQUALS => "|=",
+
+            TOKEN_TYPE.XOR => "^",
+            TOKEN_TYPE.XOR_EQUALS => "^=",
+
+            TOKEN_TYPE.NOT => "~",
+
+            TOKEN_TYPE.KEYWORD_BREAK => "break",
+            TOKEN_TYPE.KEYWORD_CASE => "case",
+            TOKEN_TYPE.KEYWORD_CHAR => "char",
+            TOKEN_TYPE.KEYWORD_CONST => "const",
+            TOKEN_TYPE.KEYWORD_CONTINUE => "continue",
+            TOKEN_TYPE.KEYWORD_DEFAULT => "default",
+            TOKEN_TYPE.KEYWORD_DO => "do",
+            TOKEN_TYPE.KEYWORD_DOUBLE => "double",
+            TOKEN_TYPE.KEYWORD_ELSE => "else",
+            TOKEN_TYPE.KEYWORD_ENUM => "enum",
+            TOKEN_TYPE.KEYWORD_FLOAT => "float",
+            TOKEN_TYPE.KEYWORD_FOR => "for",
+            TOKEN_TYPE.KEYWORD_GOTO => "goto",
+            TOKEN_TYPE.KEYWORD_IF => "if",
+            TOKEN_TYPE.KEYWORD_INT => "int",
+            TOKEN_TYPE.KEYWORD_LONG => "long",
+            TOKEN_TYPE.KEYWORD_RETURN => "return",
+            TOKEN_TYPE.KEYWORD_SHORT => "short",
+            TOKEN_TYPE.KEYWORD_SIZEOF => "sizeof",
+            TOKEN_TYPE.KEYWORD_STATIC => "static",
+            TOKEN_TYPE.KEYWORD_STRUCT => "struct",
+            TOKEN_TYPE.KEYWORD_SWITCH => "switch",
+            TOKEN_TYPE.KEYWORD_TYPEDEF => "typedef",
+            TOKEN_TYPE.KEYWORD_UNION => "union",
+            TOKEN_TYPE.KEYWORD_UNSIGNED => "unsigned",
+            TOKEN_TYPE.KEYWORD_VOID => "void",
+            TOKEN_TYPE.KEYWORD_WHILE => "while",
+            _ => t.ToString()
+        };
+    }
+    public static string token_to_lexeme(Token t)
+    {
+        return t.type switch
+        {
+            TOKEN_TYPE.IDENTIFIER => (string)t.value,
+            TOKEN_TYPE.STRING_LITERAL => (string)t.value,
+            TOKEN_TYPE.INT_LITERAL => ((long)t.value).ToString(),
+            TOKEN_TYPE.FLOAT_LITERAL => ((float)t.value).ToString(CultureInfo.InvariantCulture),
+            TOKEN_TYPE.CHAR_LITERAL => ((char)t.value).ToString(),
+
+            TOKEN_TYPE.OPEN_PAREN => "(",
+            TOKEN_TYPE.CLOSE_PAREN => ")",
+            TOKEN_TYPE.OPEN_CURLY => "{",
+            TOKEN_TYPE.CLOSE_CURLY => "}",
+            TOKEN_TYPE.OPEN_BRACKET => "[",
+            TOKEN_TYPE.CLOSE_BRACKET => "]",
+
+            TOKEN_TYPE.SEMICOLON => ";",
+            TOKEN_TYPE.COLON => ":",
+            TOKEN_TYPE.DOT => ".",
+            TOKEN_TYPE.COMMA => ",",
+            TOKEN_TYPE.QUESTION_MARK => "?",
+
+            TOKEN_TYPE.EXCLAM => "!",
+            TOKEN_TYPE.EXCLAM_EQUALS => "!=",
+
+            TOKEN_TYPE.PLUS => "+",
+            TOKEN_TYPE.PLUS_PLUS => "++",
+            TOKEN_TYPE.PLUS_EQUALS => "+=",
+
+            TOKEN_TYPE.MINUS => "-",
+            TOKEN_TYPE.MINUS_MINUS => "--",
+            TOKEN_TYPE.MINUS_EQUALS => "-=",
+            TOKEN_TYPE.ARROW => "->",
+
+            TOKEN_TYPE.STAR => "*",
+            TOKEN_TYPE.STAR_EQUALS => "*=",
+
+            TOKEN_TYPE.SLASH => "/",
+            TOKEN_TYPE.SLASH_EQUALS => "/=",
+
+            TOKEN_TYPE.PROCENT => "%",
+            TOKEN_TYPE.PROCENT_EQUALS => "%=",
+
+            TOKEN_TYPE.EQUALS => "=",
+            TOKEN_TYPE.EQUALS_EQUALS => "==",
+            TOKEN_TYPE.SMALLER => "<",
+            TOKEN_TYPE.SMALLER_SMALLER => "<<",
+            TOKEN_TYPE.SMALLER_EQUALS => "<=",
+            TOKEN_TYPE.LEFT_SHIFT_EQUALS => "<<=",
+
+            TOKEN_TYPE.GREATER => ">",
+            TOKEN_TYPE.GREATER_GREATER => ">>",
+            TOKEN_TYPE.GREATER_EQUALS => ">=",
+            TOKEN_TYPE.RIGHT_SHIFT_EQUALS => ">>=",
+
+            TOKEN_TYPE.AND => "&",
+            TOKEN_TYPE.AND_AND => "&&",
+            TOKEN_TYPE.AND_EQUALS => "&=",
+            TOKEN_TYPE.OR => "|",
+            TOKEN_TYPE.OR_OR => "||",
+            TOKEN_TYPE.OR_EQUALS => "|=",
+
+            TOKEN_TYPE.XOR => "^",
+            TOKEN_TYPE.XOR_EQUALS => "^=",
+
+            TOKEN_TYPE.NOT => "~",
+
+            TOKEN_TYPE.KEYWORD_BREAK => "break",
+            TOKEN_TYPE.KEYWORD_CASE => "case",
+            TOKEN_TYPE.KEYWORD_CHAR => "char",
+            TOKEN_TYPE.KEYWORD_CONST => "const",
+            TOKEN_TYPE.KEYWORD_CONTINUE => "continue",
+            TOKEN_TYPE.KEYWORD_DEFAULT => "default",
+            TOKEN_TYPE.KEYWORD_DO => "do",
+            TOKEN_TYPE.KEYWORD_DOUBLE => "double",
+            TOKEN_TYPE.KEYWORD_ELSE => "else",
+            TOKEN_TYPE.KEYWORD_ENUM => "enum",
+            TOKEN_TYPE.KEYWORD_FLOAT => "float",
+            TOKEN_TYPE.KEYWORD_FOR => "for",
+            TOKEN_TYPE.KEYWORD_GOTO => "goto",
+            TOKEN_TYPE.KEYWORD_IF => "if",
+            TOKEN_TYPE.KEYWORD_INT => "int",
+            TOKEN_TYPE.KEYWORD_LONG => "long",
+            TOKEN_TYPE.KEYWORD_RETURN => "return",
+            TOKEN_TYPE.KEYWORD_SHORT => "short",
+            TOKEN_TYPE.KEYWORD_SIZEOF => "sizeof",
+            TOKEN_TYPE.KEYWORD_STATIC => "static",
+            TOKEN_TYPE.KEYWORD_STRUCT => "struct",
+            TOKEN_TYPE.KEYWORD_SWITCH => "switch",
+            TOKEN_TYPE.KEYWORD_TYPEDEF => "typedef",
+            TOKEN_TYPE.KEYWORD_UNION => "union",
+            TOKEN_TYPE.KEYWORD_UNSIGNED => "unsigned",
+            TOKEN_TYPE.KEYWORD_VOID => "void",
+            TOKEN_TYPE.KEYWORD_WHILE => "while",
+
+            TOKEN_TYPE.COMMENT => (string)t.value,
+            TOKEN_TYPE.EOF => t.type.ToString(),
+            TOKEN_TYPE.PARSE_ERROR => t.type.ToString(),
+            _ => ""
+        };
+    }
 }
 
 public enum TOKEN_TYPE {
@@ -463,7 +658,6 @@ public struct Token {
     public TOKEN_TYPE type;
     public object value;
     public int loc_in_src;
-    // TODO: token location should be stored here probably
     public Token(TOKEN_TYPE t, int loc, string s_val = "", long i_val = 0, float f_val = 0) {
         loc_in_src = loc;
         type = t;
@@ -473,13 +667,5 @@ public struct Token {
             TOKEN_TYPE.FLOAT_LITERAL => f_val,
             _ => s_val
         };
-    // public string value;
-    // public Int64 integer_value;
-    // public float floating_point_value;
-    // do we need?
-    // public double double_value;
-        // value = v;
-        // integer_value = i_val;
-        // floating_point_value = f_val;
     }
 }

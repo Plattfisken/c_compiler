@@ -71,8 +71,6 @@ public class Parser {
             parameters.Add(parameter);
         } while(accept(TOKEN_TYPE.COMMA));
         return parameters;
-        // if(accept(TOKEN_TYPE.COMMA)) param_specifier(parent);
-        // Compiler.assert(parent.type == AST_TYPE.PROCEDURE_DEF, "param specifier should only be called with procedure definition");
     }
 
     DATA_TYPE type_specifier() {
@@ -144,8 +142,6 @@ public class Parser {
     AstNode statement() {
         AstNode ret;
         var t = peek_token();
-        // TODO: What do we pass as the parent? Do we still wanna do it like this? Or simply return nodes from the functions instead?
-        // where do we add the expressions
         switch(t.type) {
             case TOKEN_TYPE.SEMICOLON:
                 ret = new AstNode(AST_TYPE.EMPTY_STATEMENT);
@@ -266,15 +262,13 @@ public class Parser {
     List<AstNode> arguments() {
         var ret = new List<AstNode>();
         do {
-            ret.Add(expression(0));
+            ret.Add(expression(0, break_at_comma: true));
         } while(accept(TOKEN_TYPE.COMMA));
         return ret;
     }
 
-    // TODO:
-    // prefix operators: cast
-    // infix operators: , . ->
-    public AstNode expression(int min_bp) {
+    // TODO: prefix operator (cast)
+    public AstNode expression(int min_bp, bool break_at_comma = false) {
         var t = consume_token();
         AstNode left_hand_side;
         switch(t.type) {
@@ -325,49 +319,74 @@ public class Parser {
                 break;
         }
         while(true) {
-            // if(terminating_token_types.Contains(peek_token().type))
-            //     break;
-
             var op_type = peek_token().type;
-            
+
+            if(break_at_comma && op_type == TOKEN_TYPE.COMMA) break;
+
             var l_bp = get_postfix_binding_power(op_type);
             if(l_bp != -1) {
                 if(l_bp < min_bp) break;
                 consume_token();
-                var postfix_op = new AstNode(AST_TYPE.POSTFIX_OPERATOR, op_type);
-                postfix_op.children.Add(left_hand_side);
-                left_hand_side = postfix_op;
+
+                if(op_type == TOKEN_TYPE.OPEN_BRACKET) {
+                    var right_hand_side = expression(0);
+                    expect(TOKEN_TYPE.CLOSE_BRACKET);
+                    var postfix_op = new AstNode(AST_TYPE.POSTFIX_OPERATOR, op_type);
+                    postfix_op.children.Add(left_hand_side);
+                    postfix_op.children.Add(right_hand_side);
+                    left_hand_side = postfix_op;
+                }
+                else {
+                    var postfix_op = new AstNode(AST_TYPE.POSTFIX_OPERATOR, op_type);
+                    postfix_op.children.Add(left_hand_side);
+                    left_hand_side = postfix_op;
+                }
                 continue;
             }
-            
+
             (l_bp, var r_bp) = get_infix_binding_power(op_type);
             if ((l_bp, r_bp) != (-1, -1)) {
                 if(l_bp < min_bp) break;
-                
+
                 consume_token();
-                var right_hand_side = expression(r_bp);
-                
-                var op = new AstNode(AST_TYPE.INFIX_OPERATOR, op_type);
-                op.children.Add(left_hand_side);
-                op.children.Add(right_hand_side);
-                left_hand_side = op;
-                continue; 
+
+                if(op_type == TOKEN_TYPE.QUESTION_MARK) {
+                    var middle_hand_side = expression(0);
+                    expect(TOKEN_TYPE.COLON);
+                    var right_hand_side = expression(r_bp);
+
+                    var op = new AstNode(AST_TYPE.INFIX_OPERATOR, op_type);
+                    op.children.Add(left_hand_side);
+                    op.children.Add(middle_hand_side);
+                    op.children.Add(right_hand_side);
+                    left_hand_side = op;
+                }
+                else {
+                    var right_hand_side = expression(r_bp);
+
+                    var op = new AstNode(AST_TYPE.INFIX_OPERATOR, op_type);
+                    op.children.Add(left_hand_side);
+                    op.children.Add(right_hand_side);
+                    left_hand_side = op;
+                }
+                continue;
             }
             break;
         }
         return left_hand_side;
     }
 
-    int get_postfix_binding_power(TOKEN_TYPE t) {
+    static int get_postfix_binding_power(TOKEN_TYPE t) {
         switch(t) {
             case TOKEN_TYPE.PLUS_PLUS:
-            case TOKEN_TYPE.MINUS_MINUS: return 24;
+            case TOKEN_TYPE.MINUS_MINUS:
+            case TOKEN_TYPE.OPEN_BRACKET: return 28;
             default: return -1;
         }
     }
 
     // return -1 if its not a valid prefix operator
-    int get_prefix_binding_power(TOKEN_TYPE t) {
+    static int get_prefix_binding_power(TOKEN_TYPE t) {
         switch(t) {
             // TODO: (cast)
             case TOKEN_TYPE.PLUS:
@@ -378,17 +397,18 @@ public class Parser {
             case TOKEN_TYPE.NOT:
             case TOKEN_TYPE.STAR:
             case TOKEN_TYPE.AND:
-            case TOKEN_TYPE.KEYWORD_SIZEOF: return 23;
+            case TOKEN_TYPE.KEYWORD_SIZEOF: return 27;
             default:
                 return -1;
         }
     }
 
     // return (-1, -1) if it's not a valid infix operator
-    (int, int) get_infix_binding_power(TOKEN_TYPE t) {
+    static (int, int) get_infix_binding_power(TOKEN_TYPE t) {
         switch(t) {
-            // TODO: comma
-            // Low binding power, associativity right to left
+            case TOKEN_TYPE.COMMA: return (1, 2);
+
+            // associativity right to left
             case TOKEN_TYPE.EQUALS:                           // =
             case TOKEN_TYPE.PLUS_EQUALS:                      // +=
             case TOKEN_TYPE.MINUS_EQUALS:                     // -=
@@ -399,32 +419,37 @@ public class Parser {
             case TOKEN_TYPE.LEFT_SHIFT_EQUALS:                // <<=
             case TOKEN_TYPE.AND_EQUALS:                       // &=
             case TOKEN_TYPE.OR_EQUALS:                        // |=
-            case TOKEN_TYPE.XOR_EQUALS: return (2, 1);        // ^=
+            case TOKEN_TYPE.XOR_EQUALS: return (4, 3);        // ^=
 
-            // left to right associativity
-            case TOKEN_TYPE.OR_OR:   return (3, 4);           // ||
-            case TOKEN_TYPE.AND_AND: return (5, 6);           // &&
-            case TOKEN_TYPE.OR:      return (7, 8);           // |
-            case TOKEN_TYPE.XOR:     return (9, 10);          // ^
-            case TOKEN_TYPE.AND:     return (11, 12);         // &
+            case TOKEN_TYPE.QUESTION_MARK: return (6, 5);
+
+            // associativity left to right
+            case TOKEN_TYPE.OR_OR:   return (7, 8);           // ||
+            case TOKEN_TYPE.AND_AND: return (9, 10);          // &&
+            case TOKEN_TYPE.OR:      return (11, 12);         // |
+            case TOKEN_TYPE.XOR:     return (13, 14);         // ^
+            case TOKEN_TYPE.AND:     return (15, 16);         // &
 
             case TOKEN_TYPE.EXCLAM_EQUALS:                    // !=
-            case TOKEN_TYPE.EQUALS_EQUALS: return (13, 14);   // ==
+            case TOKEN_TYPE.EQUALS_EQUALS: return (17, 18);   // ==
 
             case TOKEN_TYPE.SMALLER:                          // <
             case TOKEN_TYPE.SMALLER_EQUALS:                   // <=
             case TOKEN_TYPE.GREATER:                          // >
-            case TOKEN_TYPE.GREATER_EQUALS: return (15, 16);  // >=
+            case TOKEN_TYPE.GREATER_EQUALS: return (19, 20);  // >=
 
             case TOKEN_TYPE.GREATER_GREATER:                  // >>
-            case TOKEN_TYPE.SMALLER_SMALLER: return (17, 18); // <<
+            case TOKEN_TYPE.SMALLER_SMALLER: return (21, 22); // <<
 
             case TOKEN_TYPE.PLUS:                             // +
-            case TOKEN_TYPE.MINUS: return (19, 20);           // -
+            case TOKEN_TYPE.MINUS: return (23, 24);           // -
 
             case TOKEN_TYPE.STAR:                             // *
             case TOKEN_TYPE.SLASH:                            // /
-            case TOKEN_TYPE.PROCENT: return (21, 22);         // %
+            case TOKEN_TYPE.PROCENT: return (25, 26);         // %
+
+            case TOKEN_TYPE.DOT: return (28, 29);             // .
+            case TOKEN_TYPE.ARROW: return (28, 29);           // ->
             default:
                 return (-1,-1);
         }
