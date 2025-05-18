@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using c_compiler;
 
@@ -28,43 +29,19 @@ public class ParserTests
     [InlineData( "a = b >= 10 ? a : c ? d : e", "(= a (? (>= b 10) a (? c d e)))")]
     [InlineData( "a = (d + 5, a <= d) ? func(a & b++, *c), 10 : a | b", "(= a (? (, (+ d 5) (<= a d)) (, (func (& a (++ b)) (* c)) 10) (| a b)))")]
     [InlineData("a = 0 ? b : c = d", "(= a (= (? 0 b c) d))")]
-    public void parser_should_return_correct_tree(string expr, string expected_s_expr)
-    {
+    public void parser_should_return_correct_expression_tree(string expr, string expected_s_expr) {
         var parser = new Parser(expr);
         var ast = parser.expression(0);
-        var s_expr = ast_to_s_expr(ast);
+        var s_expr = Parser.ast_to_s_expr(ast);
         Assert.Equal(expected_s_expr, s_expr);
     }
-
-    string ast_to_s_expr(AstNode node)
-    {
-        var sb = new StringBuilder();
-        sb.Append('(');
-        if(node.value.GetType() == typeof(TOKEN_TYPE)) 
-            sb.Append(Lexer.token_type_to_lexeme((TOKEN_TYPE)node.value));
-        else if (node.value.GetType() == typeof(Var))
-            sb.Append(((Var)node.value).name);
-        else if (node.value.GetType() == typeof(ProcedureCall))
-            sb.Append(((ProcedureCall)node.value).name);
-        else
-            sb.Append(node.value);
-        foreach (var child in node.children)
-        {
-            sb.Append(' ');
-            if(child.children.Count > 0) sb.Append(ast_to_s_expr(child));
-            else
-            {
-                if(child.value.GetType() == typeof(TOKEN_TYPE)) 
-                    sb.Append(Lexer.token_type_to_lexeme((TOKEN_TYPE)child.value));
-                else if (child.value.GetType() == typeof(Var))
-                    sb.Append(((Var)child.value).name);
-                else if (child.value.GetType() == typeof(ProcedureCall))
-                    sb.Append(((ProcedureCall)child.value).name);
-                else
-                    sb.Append(child.value);
-            }
-        }
-        sb.Append(')');
-        return sb.ToString();
+    [Theory]
+    [InlineData("int main(void) { printf(\"Hello, world!\\n\"); }",
+        "\"c_compiler.TranslationUnit\": [\n    \"main\": [\n        \"printf\": [\n            \"\"Hello, world!\\n\"\"\n        ]\n    ]\n]\n")]
+    public void parser_should_return_correct_program_tree(string code, string expected_tree_rep) {
+        var parser = new Parser(code);
+        var ast = parser.parse();
+        var ast_rep = Compiler.generate_tree_representation(ast);
+        Assert.Equal(expected_tree_rep, ast_rep);
     }
 }

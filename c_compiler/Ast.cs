@@ -9,8 +9,8 @@ public record AstNode(List<AstNode>? children = null)
 
 public record TranslationUnit(List<AstNode>? children = null) : AstNode(children);
 
-public record ProcedureDef(string name, DataType return_type, DataType[] parameters, List<AstNode>? children = null) : AstNode(children);
-public record ProcedureDecl(string name, DataType return_type, DataType[] parameters, List<AstNode>? children = null) : AstNode(children);
+public record ProcedureDef(string name, DataType return_type, DataType[] parameters, bool variable_length,  List<AstNode>? children = null) : AstNode(children);
+public record ProcedureDecl(string name, DataType return_type, DataType[] parameters, bool variable_length, List<AstNode>? children = null) : AstNode(children);
 
 public record ProcedureCall(string name, List<AstNode>? children = null) : AstNode(children);
 
@@ -19,25 +19,27 @@ public record VarDecl(string name, DataType type, List<AstNode>? children = null
 // TODO: Do we assign type during parsing? Or check it after constructing the tree
 public record Var(string name, List<AstNode>? children = null) : AstNode(children);
 
-public record ForStmnt(AstNode before, AstNode condition, AstNode each_iter, List<AstNode>? children = null) : AstNode(children);
-public record WhileStmnt(AstNode condition, List<AstNode>? children = null) : AstNode(children);
-public record DoStmnt(AstNode condition, List<AstNode>? children = null) : AstNode(children);
-public record IfStmnt(AstNode condition, List<AstNode>? children = null) : AstNode(children);
-
-public record InfixOperator(List<AstNode>? children = null) : AstNode(children);
-public record PrefixOperator(List<AstNode>? children = null) : AstNode(children);
-public record PostfixOperator(List<AstNode>? children = null) : AstNode(children);
-public record IntLiteral(List<AstNode>? children = null) : AstNode(children);
-public record FloatLiteral(List<AstNode>? children = null) : AstNode(children);
-public record CharLiteral(List<AstNode>? children = null) : AstNode(children);
-public record StringLiteral(List<AstNode>? children = null) : AstNode(children);
-public record Label(List<AstNode>? children = null) : AstNode(children);
-public record Goto(List<AstNode>? children = null) : AstNode(children);
-public record ForStatement(List<AstNode>? children = null) : AstNode(children);
-public record WhileStatement(List<AstNode>? children = null) : AstNode(children);
-public record DoStatement(List<AstNode>? children = null) : AstNode(children);
-public record IfStatement(List<AstNode>? children = null) : AstNode(children);
 public record EmptyStatement(List<AstNode>? children = null) : AstNode(children);
+public record CompoundStatement(List<AstNode>? children = null) : AstNode(children);
+public record ForStatement(AstNode before, AstNode condition, AstNode each_iter, List<AstNode>? children = null) : AstNode(children);
+public record WhileStatement(AstNode condition, List<AstNode>? children = null) : AstNode(children);
+public record DoStatement(AstNode condition, List<AstNode>? children = null) : AstNode(children);
+public record IfStatement(AstNode condition, List<AstNode>? children = null) : AstNode(children);
+
+public record InfixOperator(TOKEN_TYPE type, List<AstNode>? children = null) : AstNode(children);
+public record PrefixOperator(TOKEN_TYPE type, List<AstNode>? children = null) : AstNode(children);
+public record PostfixOperator(TOKEN_TYPE type, List<AstNode>? children = null) : AstNode(children);
+
+public record IntLiteral(long value, List<AstNode>? children = null) : AstNode(children);
+
+// TODO: change this to double. MAKE SURE YOU CHANGE IN THE LEXER TOO SO IT'S PARSED CORRECTLY
+public record FloatLiteral(float value, List<AstNode>? children = null) : AstNode(children);
+public record CharLiteral(char value, List<AstNode>? children = null) : AstNode(children);
+public record StringLiteral(string value, List<AstNode>? children = null) : AstNode(children);
+
+public record Label(string name, List<AstNode>? children = null) : AstNode(children);
+public record Goto(string label_name, List<AstNode>? children = null) : AstNode(children);
+
 
 //public class AstNode {
 //    public AST_TYPE type;
@@ -134,7 +136,5 @@ public enum DATA_TYPE {
     DOUBLE
 }
 
-public struct DataType {
-    public DATA_TYPE type;
-    public int indirection_count;
-}
+// Why Microsoft? Why do you support equality operators for record structs but not regular structs?
+public record struct DataType(DATA_TYPE type, int indirection_count = 0);

@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text;
 
 namespace c_compiler;
@@ -62,46 +61,36 @@ public static class Compiler {
         return code_generator.code_gen(root_node);
     }
 
-    static void print_ast(AstNode root_node) {
-        Queue<AstNode> q = new();
-        var node = root_node;
-        q.Enqueue(node);
-        while(q.Count > 0) {
-            var new_node = q.Dequeue();
-            node = new_node;
-            Console.Write(node_text(node));
-            if(node.children.Count > 0) Console.Write(" --> ");
-            foreach(var child in node.children) {
-                q.Enqueue(child);
-                Console.Write(node_text(child));
-                Console.Write(", ");
-            }
-            Console.WriteLine();
+    static void type_check(AstNode root_node) {
+        TypeChecker.type_check(root_node);
+    }
+
+    public static void print_ast(AstNode node) {
+
+        Console.WriteLine(generate_tree_representation(node));
+    }
+
+    public static string generate_tree_representation(AstNode node, int indentation_count = 0) {
+        var sb = new StringBuilder();
+        const string indent = "    ";
+        for(int i = 0; i < indentation_count; ++i) {
+            sb.Append(indent);
         }
-        string node_text(AstNode n) {
-            switch(n.type) {
-                case AST_TYPE.VAR:
-                    return ((Var)n.value).name;
-                case AST_TYPE.INT_LITERAL:
-                    return ((long)n.value).ToString();
-                case AST_TYPE.FLOAT_LITERAL:
-                    return ((float)n.value).ToString();
-                case AST_TYPE.CHAR_LITERAL:
-                    return ((char)(long)n.value).ToString();
-                case AST_TYPE.STRING_LITERAL:
-                    return (string)n.value;
-                case AST_TYPE.INFIX_OPERATOR:
-                case AST_TYPE.PREFIX_OPERATOR:
-                case AST_TYPE.POSTFIX_OPERATOR:
-                    return ((TOKEN_TYPE)n.value).ToString();
-                case AST_TYPE.PROCEDURE_CALL: {
-                    var call = ((ProcedureCall)n.value);
-                    return call.name;
-                }
-                default:
-                    return n.type.ToString();
-            }
+        sb.Append("\"" + Parser.node_to_str(node) + "\"");
+        if(node.children.Count > 0)
+            sb.Append(": [\n");
+        else sb.Append("\n");
+        foreach(var child in node.children) {
+            sb.Append(generate_tree_representation(child, indentation_count + 1));
         }
+
+        if(node.children.Count > 0) {
+            for(int i = 0; i < indentation_count; ++i) {
+                sb.Append(indent);
+            }
+            sb.Append("]\n");
+        }
+        return sb.ToString();
     }
 
     public static string compile(string source_code, bool print_ast_only) {
@@ -110,6 +99,7 @@ public static class Compiler {
             print_ast(ast);
             System.Environment.Exit(0);
         }
+        type_check(ast);
         return code_gen(ast);
     }
 

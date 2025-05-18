@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Text;
+
 namespace c_compiler;
 
 public class Parser {
@@ -6,8 +9,6 @@ public class Parser {
 
     List<Token> lexed_tokens = new();
     int next_token_idx = 0;
-
-    List<string> declared_procedures = new();
 
     public Parser(string source_code) {
         text = source_code;
@@ -19,58 +20,61 @@ public class Parser {
     }
 
     AstNode translation_unit() {
-        var translation_unit_node = new AstNode(AST_TYPE.TRANSLATION_UNIT);
+        var translation_unit_node = new TranslationUnit();
         while(!accept(TOKEN_TYPE.EOF)) {
-            translation_unit_node.children.Add(procedure_definition_or_declaration());
+            translation_unit_node.children.Add(proc_def_or_top_level_decl());
         }
         return translation_unit_node;
     }
 
-    AstNode procedure_definition_or_declaration() {
-        var type = type_specifier();
-        var indirection_count = declarator();
-        DataType return_type;
-        return_type.type = type;
-        return_type.indirection_count = indirection_count;
+    AstNode proc_def_or_top_level_decl() {
+        var t = type_specifier();
+        var i = declarator();
+        var type = new DataType(t, i);
 
         var name = (string)peek_token(-1).value;
-        var parameters = new List<DataType>();
+        DataType[] parameters = [];
+        bool variable_length = false;
 
-        declared_procedures.Add(name);
+        // global var
+        if(accept(TOKEN_TYPE.SEMICOLON)) {
+            return new VarDecl(name, type);
+        }
+        else if(accept(TOKEN_TYPE.EQUALS)) {
+            return new VarDecl(name, type, [expression(0)]);
+        }
 
+        // procedure
         expect(TOKEN_TYPE.OPEN_PAREN);
         if(!accept(TOKEN_TYPE.CLOSE_PAREN)) {
-            parameters = param_specifier();
+            (parameters, variable_length) = param_specifier();
             expect(TOKEN_TYPE.CLOSE_PAREN);
         }
-
         // declaration
         if(accept(TOKEN_TYPE.SEMICOLON)){
-            ProcedureDecl proc_decl;
-            proc_decl.name = name;
-            proc_decl.return_type = return_type;
-            proc_decl.parameters = parameters;
-            return new AstNode(AST_TYPE.PROCEDURE_DECL, proc_decl);
+            return new ProcedureDecl(name, type, parameters, variable_length);
         }
         // definition
-        ProcedureDef proc_def;
-        proc_def.name = name;
-        proc_def.return_type = return_type;
-        proc_def.parameters = parameters;
-        var ret = new AstNode(AST_TYPE.PROCEDURE_DEF, proc_def);
-        ret.children.Add(compound_statement());
-        return ret;
+        return new ProcedureDef(name, type, parameters, variable_length, compound_statement().children);
     }
 
-    List<DataType> param_specifier() {
+    (DataType[], bool) param_specifier() {
         var parameters = new List<DataType>();
+        var variable_length = false;
         do {
-            DataType parameter;
-            parameter.type = type_specifier();
-            parameter.indirection_count = declarator();
+            if(accept(TOKEN_TYPE.ELLIPSIS)) {
+                variable_length = true;
+                break;
+            }
+            var t = type_specifier();
+            var parameter = new DataType(t);
+            while(accept(TOKEN_TYPE.STAR))
+                ++parameter.indirection_count;
+
+            accept(TOKEN_TYPE.IDENTIFIER);
             parameters.Add(parameter);
         } while(accept(TOKEN_TYPE.COMMA));
-        return parameters;
+        return (parameters.ToArray(), variable_length);
     }
 
     DATA_TYPE type_specifier() {
@@ -120,7 +124,7 @@ public class Parser {
     }
 
     AstNode compound_statement() {
-        var ret = new AstNode(AST_TYPE.COMPOUND_STATEMENT);
+        var ret = new CompoundStatement();
         expect(TOKEN_TYPE.OPEN_CURLY);
         while(!accept(TOKEN_TYPE.CLOSE_CURLY))
             ret.children.Add(statement());
@@ -128,70 +132,63 @@ public class Parser {
     }
 
     AstNode declaration() {
-        VarDecl var_decl;
-        var_decl.type.type = type_specifier();
-        var_decl.type.indirection_count = declarator();
-        var_decl.name = (string)peek_token(-1).value;
-        var ret = new AstNode(AST_TYPE.VAR_DECL, var_decl);
-        if(accept(TOKEN_TYPE.EQUALS)) {
-            ret.children.Add(expression(0));
-        }
-        return ret;
+        var type = type_specifier();
+        var indirection_count = declarator();
+        var name = (string)peek_token(-1).value;
+
+        if(accept(TOKEN_TYPE.EQUALS))
+            return new VarDecl(name, new DataType(type, indirection_count), [expression(0)]);
+
+        return new VarDecl(name, new DataType(type, indirection_count));
     }
 
     AstNode statement() {
-        AstNode ret;
         var t = peek_token();
         switch(t.type) {
             case TOKEN_TYPE.SEMICOLON:
-                ret = new AstNode(AST_TYPE.EMPTY_STATEMENT);
                 consume_token();
-                break;
+                return new EmptyStatement();
             case TOKEN_TYPE.KEYWORD_IF:
-                ret = if_statement();
-                break;
+                return if_statement();
             case TOKEN_TYPE.KEYWORD_DO:
-                ret = do_statement();
-                break;
+                return do_statement();
             case TOKEN_TYPE.KEYWORD_WHILE:
-                ret = while_statement();
-                break;
+                return while_statement();
             case TOKEN_TYPE.KEYWORD_FOR:
-                ret = for_statement();
-                break;
+                return for_statement();
             // TODO: switch statement... how are they done?
             // case TOKEN_TYPE.KEYWORD_SWITCH:
             //     ret = switch_statement();
             //     break;
             case TOKEN_TYPE.KEYWORD_GOTO:
                 consume_token();
-                ret = new AstNode(AST_TYPE.GOTO, peek_token().value);
+                var name = (string)peek_token().value;
                 expect(TOKEN_TYPE.IDENTIFIER);
                 expect(TOKEN_TYPE.SEMICOLON);
-                break;
+                return new Goto(name);
 
             case TOKEN_TYPE.OPEN_CURLY:
-                ret = compound_statement();
-                break;
+                return compound_statement();
 
             default:
                 if(is_datatype(t.type)) {
-                    ret = declaration();
+                    var ret = declaration();
                     expect(TOKEN_TYPE.SEMICOLON);
+                    return ret;
                 }
                 else if(t.type == TOKEN_TYPE.IDENTIFIER && peek_token(1).type == TOKEN_TYPE.COLON) {
-                    ret = new AstNode(AST_TYPE.LABEL, peek_token().value);
+                    var ret = new Label((string)peek_token().value);
                     // Or consume_token(); x2. But this is a little clearer. Even though it's two unnecessary checks
                     expect(TOKEN_TYPE.IDENTIFIER);
                     expect(TOKEN_TYPE.COLON);
+                    return ret;
                 }
                 else {
-                    ret = expression(0);
+                    var ret = expression(0);
                     expect(TOKEN_TYPE.SEMICOLON);
+                    return ret;
                 }
-                break;
         }
-        return ret;
     }
 
     // AstNode switch_statement() {
@@ -199,64 +196,54 @@ public class Parser {
     // }
 
     AstNode if_statement() {
-        AstNode ret = new AstNode(AST_TYPE.IF_STATEMENT);
         expect(TOKEN_TYPE.KEYWORD_IF);
         expect(TOKEN_TYPE.OPEN_PAREN);
-        IfStmnt if_stmnt;
-        if_stmnt.condition = expression(0);
+        var condition = expression(0);
         expect(TOKEN_TYPE.CLOSE_PAREN);
 
-        ret.children.Add(statement());
+        var ret = new IfStatement(condition);
+        var if_case = statement();
         if(accept(TOKEN_TYPE.KEYWORD_ELSE)) {
-            ret.children.Add(statement());
+            var else_case = statement();
+            return new IfStatement(condition, [if_case, else_case]);
         }
-        ret.value = if_stmnt;
-        return ret;
+        return new IfStatement(condition, [if_case]);
     }
 
     AstNode do_statement() {
-        AstNode ret = new AstNode(AST_TYPE.DO_STATEMENT);
         expect(TOKEN_TYPE.KEYWORD_DO);
-        ret.children.Add(statement());
+        var stmnt = statement();
         expect(TOKEN_TYPE.KEYWORD_WHILE);
         expect(TOKEN_TYPE.OPEN_PAREN);
-        DoStmnt do_stmnt;
-        do_stmnt.condition = expression(0);
-        ret.value = do_stmnt;
+        var condition = expression(0);
         expect(TOKEN_TYPE.CLOSE_PAREN);
         expect(TOKEN_TYPE.SEMICOLON);
-        return ret;
+        return new DoStatement(condition, [stmnt]);
     }
 
     AstNode while_statement() {
-        AstNode ret = new AstNode(AST_TYPE.WHILE_STATEMENT);
         expect(TOKEN_TYPE.KEYWORD_WHILE);
         expect(TOKEN_TYPE.OPEN_PAREN);
-        WhileStmnt while_stmnt;
-        while_stmnt.condition = expression(0);
+        var condition = expression(0);
         expect(TOKEN_TYPE.CLOSE_PAREN);
-        ret.value = while_stmnt;
-        ret.children.Add(statement());
-        return ret;
+        var stmnt = statement();
+        return new WhileStatement(condition, [stmnt]);
     }
 
     AstNode for_statement() {
-        AstNode ret = new AstNode(AST_TYPE.FOR_STATEMENT);
         expect(TOKEN_TYPE.KEYWORD_FOR);
         expect(TOKEN_TYPE.OPEN_PAREN);
 
-        ForStmnt for_stmnt;
-        for_stmnt.before = expression(0);
+        var before = is_datatype(peek_token().type) ? declaration() : expression(0);
         expect(TOKEN_TYPE.SEMICOLON);
 
-        for_stmnt.condition = expression(0);
+        var condition = expression(0);
         expect(TOKEN_TYPE.SEMICOLON);
 
-        for_stmnt.each_iter = expression(0);
+        var each_iter = expression(0);
         expect(TOKEN_TYPE.CLOSE_PAREN);
-        ret.value = for_stmnt;
-        ret.children.Add(statement());
-        return ret;
+        var stmnt = statement();
+        return new ForStatement(before, condition, each_iter, [stmnt]);
     }
 
     List<AstNode> arguments() {
@@ -275,9 +262,7 @@ public class Parser {
             case TOKEN_TYPE.IDENTIFIER:
                 var name = (string)t.value;
                 if(accept(TOKEN_TYPE.OPEN_PAREN)) {
-                    ProcedureCall proc_call;
-                    proc_call.name = name;
-                    left_hand_side = new AstNode(AST_TYPE.PROCEDURE_CALL, proc_call);
+                    left_hand_side = new ProcedureCall(name);
                     if(!accept(TOKEN_TYPE.CLOSE_PAREN)) {
                         left_hand_side.children = arguments();
                         expect(TOKEN_TYPE.CLOSE_PAREN);
@@ -285,9 +270,7 @@ public class Parser {
                 }
                 // variable
                 else {
-                    Var variable;
-                    variable.name = name;
-                    left_hand_side = new AstNode(AST_TYPE.VAR, variable);
+                    left_hand_side = new Var(name);
                 }
                 break;
             case TOKEN_TYPE.OPEN_PAREN:
@@ -295,19 +278,19 @@ public class Parser {
                 expect(TOKEN_TYPE.CLOSE_PAREN);
                 break;
             case TOKEN_TYPE.INT_LITERAL:
-                left_hand_side = new AstNode(AST_TYPE.INT_LITERAL, (long)t.value);
+                left_hand_side = new IntLiteral((long)t.value);
                 break;
             case TOKEN_TYPE.FLOAT_LITERAL:
-                left_hand_side = new AstNode(AST_TYPE.FLOAT_LITERAL, (float)t.value);
+                left_hand_side = new FloatLiteral((float)t.value);
                 break;
             case TOKEN_TYPE.CHAR_LITERAL:
-                left_hand_side = new AstNode(AST_TYPE.CHAR_LITERAL, (long)t.value);
+                left_hand_side = new CharLiteral((char)(long)t.value);
                 break;
             case TOKEN_TYPE.STRING_LITERAL:
-                left_hand_side = new AstNode(AST_TYPE.STRING_LITERAL, (string)t.value);
+                left_hand_side = new StringLiteral((string)t.value);
                 break;
             default:
-                var op = new AstNode(AST_TYPE.PREFIX_OPERATOR, t.type);
+                var op = new PrefixOperator(t.type);
                 var r_bp = get_prefix_binding_power(t.type);
 
                 if(r_bp == -1)
@@ -331,13 +314,13 @@ public class Parser {
                 if(op_type == TOKEN_TYPE.OPEN_BRACKET) {
                     var right_hand_side = expression(0);
                     expect(TOKEN_TYPE.CLOSE_BRACKET);
-                    var postfix_op = new AstNode(AST_TYPE.POSTFIX_OPERATOR, op_type);
+                    var postfix_op = new PostfixOperator(op_type);
                     postfix_op.children.Add(left_hand_side);
                     postfix_op.children.Add(right_hand_side);
                     left_hand_side = postfix_op;
                 }
                 else {
-                    var postfix_op = new AstNode(AST_TYPE.POSTFIX_OPERATOR, op_type);
+                    var postfix_op = new PostfixOperator(op_type);
                     postfix_op.children.Add(left_hand_side);
                     left_hand_side = postfix_op;
                 }
@@ -355,7 +338,7 @@ public class Parser {
                     expect(TOKEN_TYPE.COLON);
                     var right_hand_side = expression(r_bp);
 
-                    var op = new AstNode(AST_TYPE.INFIX_OPERATOR, op_type);
+                    var op = new InfixOperator(op_type);
                     op.children.Add(left_hand_side);
                     op.children.Add(middle_hand_side);
                     op.children.Add(right_hand_side);
@@ -364,7 +347,7 @@ public class Parser {
                 else {
                     var right_hand_side = expression(r_bp);
 
-                    var op = new AstNode(AST_TYPE.INFIX_OPERATOR, op_type);
+                    var op = new InfixOperator(op_type);
                     op.children.Add(left_hand_side);
                     op.children.Add(right_hand_side);
                     left_hand_side = op;
@@ -534,4 +517,39 @@ public class Parser {
         string line = text[line_start..line_end];
         return line;
     }
+
+    public static string ast_to_s_expr(AstNode node)
+    {
+        var sb = new StringBuilder();
+        sb.Append('(');
+        sb.Append(node_to_str(node));
+
+        foreach (var child in node.children)
+        {
+            sb.Append(' ');
+            if(child.children.Count > 0) sb.Append(ast_to_s_expr(child));
+            else
+            {
+                sb.Append(node_to_str(child));
+            }
+        }
+        sb.Append(')');
+        return sb.ToString();
+
+    }
+
+    public static string node_to_str(AstNode n) => n switch {
+        PrefixOperator op => Lexer.token_type_to_lexeme(op.type),
+        PostfixOperator op => Lexer.token_type_to_lexeme(op.type),
+        InfixOperator op => Lexer.token_type_to_lexeme(op.type),
+        Var v => v.name,
+        ProcedureCall p => p.name,
+        ProcedureDecl p => p.name,
+        ProcedureDef p => p.name,
+        StringLiteral s => s.value,
+        IntLiteral i => i.value.ToString(),
+        FloatLiteral f => f.value.ToString(CultureInfo.InvariantCulture),
+        CharLiteral c => c.value.ToString(),
+        _ => n.GetType().ToString()
+    };
 }

@@ -100,8 +100,18 @@ public class Lexer {
             case '.':
                 if(is_number(peek_char()))
                     return get_numeric_literal();
-                else
+                else {
+                    if(cur + 1 < text.Length) {
+                        string three_char_lexem = text[(cur - 1) .. (cur + 2)];
+                        if(is_lexeme_keyword_or_reserved_symbol(three_char_lexem, out var t)) {
+                            // consume two extra chars
+                            consume_char();
+                            consume_char();
+                            return new Token(t, cur - 3);
+                        }
+                    }
                     return new Token(TOKEN_TYPE.DOT, cur - 1);
+                }
             default: {
                 // one length single value token
                 if(is_lexeme_keyword_or_reserved_symbol(c.ToString(), out var t)) {
@@ -319,6 +329,7 @@ public class Lexer {
             case "^="      : t = TOKEN_TYPE.XOR_EQUALS;         break;
             case "<<="     : t = TOKEN_TYPE.LEFT_SHIFT_EQUALS;  break;
             case ">>="     : t = TOKEN_TYPE.RIGHT_SHIFT_EQUALS; break;
+            case "..."     : t = TOKEN_TYPE.ELLIPSIS;           break;
             // Parse error as these symbols are not tokens by themselves, but it's useful to look them up
             case "\""      : t = TOKEN_TYPE.PARSE_ERROR;        break;
             case "'"       : t = TOKEN_TYPE.PARSE_ERROR;        break;
@@ -357,7 +368,7 @@ public class Lexer {
         }
         return true;
     }
-    
+
     public static string token_type_to_lexeme(TOKEN_TYPE t)
     {
         return t switch
@@ -372,6 +383,7 @@ public class Lexer {
             TOKEN_TYPE.SEMICOLON => ";",
             TOKEN_TYPE.COLON => ":",
             TOKEN_TYPE.DOT => ".",
+            TOKEN_TYPE.ELLIPSIS => "...",
             TOKEN_TYPE.COMMA => ",",
             TOKEN_TYPE.QUESTION_MARK => "?",
 
@@ -450,6 +462,7 @@ public class Lexer {
             _ => t.ToString()
         };
     }
+
     public static string token_to_lexeme(Token t)
     {
         return t.type switch
@@ -470,6 +483,7 @@ public class Lexer {
             TOKEN_TYPE.SEMICOLON => ";",
             TOKEN_TYPE.COLON => ":",
             TOKEN_TYPE.DOT => ".",
+            TOKEN_TYPE.ELLIPSIS => "...",
             TOKEN_TYPE.COMMA => ",",
             TOKEN_TYPE.QUESTION_MARK => "?",
 
@@ -571,6 +585,7 @@ public enum TOKEN_TYPE {
     SEMICOLON,           // ;
     COLON,               // :
     DOT,                 // .
+    ELLIPSIS,            // ...
     COMMA,               // ,
     QUESTION_MARK,       // ?
 
