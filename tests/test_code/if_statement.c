@@ -15,4 +15,5 @@ int main(void) {
     if(a) {
         printf("fourth statement true\n");
     }
+    return 0;
 }

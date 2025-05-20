@@ -1,4 +1,4 @@
-int other_func(int a);
+int other_func(int a) { return a + 1 }
 int func(int a, int b);
 int main(int argc, char **argv) {
     int a;
