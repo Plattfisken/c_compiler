@@ -18,6 +18,7 @@ public class CodeGen {
     };
 
     int label_count = 0;
+    int proc_count = 0;
 
     public string code_gen(TranslationUnit root_node) {
         StringBuilder sb = new();
@@ -49,6 +50,21 @@ public class CodeGen {
         return sb.ToString();
     }
 
+    public int total_var_args_in_tree(AstNode node) {
+        int count = 0;
+        if(node is ProcedureCall) {
+            if(proc_def_dict[((ProcedureCall)node).name].variable_length) {
+                int num_var_args = ((ProcedureCall)node).args?.Length ?? 0 - proc_def_dict[((ProcedureCall)node).name].parameters.Length;
+                if(num_var_args > 0) return num_var_args;
+            }
+        }
+
+        foreach(var child in node.children) {
+            count += total_var_args_in_tree(child);
+        }
+        return count;
+    }
+
     public int total_bytes_of_vars_in_tree(AstNode node) {
         int count = 0;
         if(node is VarDecl)
@@ -66,9 +82,13 @@ public class CodeGen {
         sb.AppendLine($".global _{node.name}");
         sb.AppendLine(".align 4");
 
-        int required_stack_space = total_bytes_of_vars_in_tree(node) + node.parameters.Select(p => get_size_of_type(p)).Sum();
+        int required_stack_space =
+            total_bytes_of_vars_in_tree(node) +
+            node.parameters.Select(p => get_size_of_type(p)).Sum() +
+            total_var_args_in_tree(node)*8;
+
         int stack_space_to_allocate = 32;
-        while(stack_space_to_allocate < required_stack_space)
+        while(stack_space_to_allocate - 16 < required_stack_space)
             stack_space_to_allocate += 16;
 
         sb.AppendLine($"_{node.name}:");
@@ -121,25 +141,64 @@ public class CodeGen {
                     var out_label = get_label();
                     sb.Append(gen_expression_instructions(i.condition, reg, var_offsets));
                     sb.AppendLine($"\ttbnz\t{reg}, #0, {true_label}");
+                    free_reg(reg);
                     if(i.else_case is not null) {
                         sb.AppendLine($"\tb\t{false_label}");
                         sb.AppendLine($"{false_label}:");
                         generate_statement_code(i.else_case);
-                        sb.AppendLine($"\tb\t{out_label}");
                     }
+                    sb.AppendLine($"\tb\t{out_label}");
                     sb.AppendLine($"{true_label}:");
                     generate_statement_code(i.if_case);
                     sb.AppendLine($"\tb\t{out_label}");
                     sb.AppendLine($"{out_label}:");
                 } break;
                 case WhileStatement w: {
-                    Compiler.todo();
+                    var condition_label = get_label();
+                    var true_label = get_label();
+                    var out_label = get_label();
+
+                    var should_be_32_bit_reg = true;
+                    var condition_reg = get_reg(should_be_32_bit_reg);
+                    sb.AppendLine($"{condition_label}:");
+                    sb.Append(gen_expression_instructions(w.condition, condition_reg, var_offsets));
+                    sb.AppendLine($"\ttbnz\t{condition_reg}, #0, {true_label}");
+                    free_reg(condition_reg);
+
+                    sb.AppendLine($"\tb\t{out_label}");
+
+                    sb.AppendLine($"{true_label}:");
+                    generate_statement_code(w.body);
+                    sb.AppendLine($"\tb\t{condition_label}");
+                    sb.AppendLine($"{out_label}:");
                 } break;
                 case DoStatement d: {
                     Compiler.todo();
                 } break;
                 case ForStatement f: {
-                    Compiler.todo();
+                    generate_statement_code(f.before);
+                    var condition_label = get_label();
+                    var true_label = get_label();
+                    var out_label = get_label();
+                    var should_be_32_bit_reg = true;
+                    var condition_reg = get_reg(should_be_32_bit_reg);
+                    sb.AppendLine($"{condition_label}:");
+                    sb.Append(gen_expression_instructions(f.condition, condition_reg, var_offsets));
+                    sb.AppendLine($"\ttbnz\t{condition_reg}, #0, {true_label}");
+                    free_reg(condition_reg);
+
+                    sb.AppendLine($"\tb\t{out_label}");
+
+                    sb.AppendLine($"{true_label}:");
+                    generate_statement_code(f.body);
+
+                    should_be_32_bit_reg = true;
+                    var reg = get_reg(should_be_32_bit_reg);
+                    sb.Append(gen_expression_instructions(f.each_iter, reg, var_offsets));
+                    free_reg(reg);
+
+                    sb.AppendLine($"\tb\t{condition_label}");
+                    sb.AppendLine($"{out_label}:");
                 } break;
                 case GotoStatement g: {
                     sb.AppendLine($"\tb\t{g.label_name}");
@@ -151,8 +210,9 @@ public class CodeGen {
                             var reg = get_reg(should_be_32_bit_reg);
                             sb.Append(gen_expression_instructions(r.return_expression, reg, var_offsets));
                             sb.AppendLine($"\tmov\tw0, {reg}");
+                            free_reg(reg);
                     }
-                        sb.AppendLine($"\tb\t{ret_label}");
+                    sb.AppendLine($"\tb\t{ret_label}");
 
                 } break;
                 default: {
@@ -171,6 +231,10 @@ public class CodeGen {
         sb.AppendLine($"\tldp\tx29, x30, [sp, #{stack_space_to_allocate - 16}]");
         sb.AppendLine($"\tadd\tsp, sp, #{stack_space_to_allocate}");
         sb.AppendLine("\tret");
+
+        proc_count++;
+        label_count = 0;
+
         return sb.ToString();
     }
 
@@ -180,7 +244,7 @@ public class CodeGen {
         return false;
     }
 
-    string instructions_for_operator(AstNode node, string reg1, string? reg2 = null) {
+    string instructions_for_arithmetic_logical_ops(AstNode node, string reg1, string reg2) {
         Compiler.assert(is_operator_or_proc_call(node), "Node wasn't an operator");
         var sb = new StringBuilder();
         switch(node) {
@@ -271,37 +335,90 @@ public class CodeGen {
 
         switch(node) {
             case InfixOperator i: {
+                if(i.type == TOKEN_TYPE.EQUALS) {
+                    sb.Append(gen_expression_instructions(i.right, dest_reg, var_offsets));
+                    Compiler.assert(i.left is Var, "Can only assign to variable");
+                    sb.AppendLine($"\tstr\t{dest_reg}, [sp, #{var_offsets[((Var)i.left).name]}]");
+                }
+                else {
                     sb.Append(gen_expression_instructions(i.left, dest_reg, var_offsets));
                     var reg = get_reg(true);
                     sb.Append(gen_expression_instructions(i.right, reg, var_offsets));
-                    sb.Append(instructions_for_operator(i, dest_reg, reg));
+                    sb.Append(instructions_for_arithmetic_logical_ops(i, dest_reg, reg));
                     free_reg(reg);
+                }
             } break;
             case PrefixOperator p: {
-                sb.Append(gen_expression_instructions(p.operand, dest_reg, var_offsets));
-                sb.Append(instructions_for_operator(p, dest_reg));
+                switch(p.type) {
+                    case TOKEN_TYPE.PLUS_PLUS: {
+                        Compiler.assert(p.operand is Var, "can only increment var");
+                        sb.AppendLine($"\tldr\t{dest_reg}, [sp, {var_offsets[((Var)p.operand).name]}]");
+                        sb.AppendLine($"\tadd\t{dest_reg}, {dest_reg}, #1");
+                        sb.AppendLine($"\tstr\t{dest_reg}, [sp, {var_offsets[((Var)p.operand).name]}]");
+                    } break;
+                    case TOKEN_TYPE.MINUS_MINUS: {
+                        Compiler.assert(p.operand is Var, "can only decrement var");
+                        sb.AppendLine($"\tldr\t{dest_reg}, [sp, {var_offsets[((Var)p.operand).name]}]");
+                        sb.AppendLine($"\tsub\t{dest_reg}, {dest_reg}, #1");
+                        sb.AppendLine($"\tstr\t{dest_reg}, [sp, {var_offsets[((Var)p.operand).name]}]");
+                    } break;
+                    default:
+                     Compiler.todo();
+                     break;
+                }
+                // sb.Append(gen_expression_instructions(p.operand, dest_reg, var_offsets));
             } break;
             case PostfixOperator p:
-                sb.Append(gen_expression_instructions(p.operand, dest_reg, var_offsets));
-                sb.Append(instructions_for_operator(p, dest_reg));
+                switch(p.type) {
+                    case TOKEN_TYPE.PLUS_PLUS: {
+                        Compiler.assert(p.operand is Var, "can only increment var");
+                        sb.AppendLine($"\tldr\t{dest_reg}, [sp, {var_offsets[((Var)p.operand).name]}]");
+                        var should_be_32_bit_reg = true;
+                        var reg = get_reg(should_be_32_bit_reg);
+                        sb.AppendLine($"\tadd\t{reg}, {dest_reg}, #1");
+                        sb.AppendLine($"\tstr\t{reg}, [sp, {var_offsets[((Var)p.operand).name]}]");
+                    } break;
+                    case TOKEN_TYPE.MINUS_MINUS: {
+                        Compiler.assert(p.operand is Var, "can only decrement var");
+                        sb.AppendLine($"\tldr\t{dest_reg}, [sp, {var_offsets[((Var)p.operand).name]}]");
+                        var should_be_32_bit_reg = true;
+                        var reg = get_reg(should_be_32_bit_reg);
+                        sb.AppendLine($"\tsub\t{reg}, {dest_reg}, #1");
+                        sb.AppendLine($"\tstr\t{reg}, [sp, {var_offsets[((Var)p.operand).name]}]");
+                    } break;
+                    default:
+                     Compiler.todo();
+                     break;
+                }
+                // sb.Append(gen_expression_instructions(p.operand, dest_reg, var_offsets));
                 break;
             case TernaryOperator:
                 Compiler.todo();
                 break;
             case ProcedureCall p: {
                 Compiler.assert(p.children.Length <= 8, "Only support 8 args");
+                int variadic_arg_stack_offset = 0;
                 for(int i = 0; i < p.args?.Length; ++i) {
                     // TODO: x or w register depending on type
-                    string reg_type;
                     var proc_def = proc_def_dict[p.name];
                     // For variable length
-                    if(i >= proc_def.parameters.Length && proc_def.variable_length)
+                    if(i >= proc_def.parameters.Length) {
                         // Let's just assume it's this for now
                         // TODO: Should we try to infer the type of an expression instead?
-                        reg_type = "w";
-                    else
-                        reg_type = get_size_of_type(proc_def.parameters[i]) > 4 ? "x" : "w";
-                    sb.Append(gen_expression_instructions(p.args[i], $"{reg_type}{i}", var_offsets));
+                        if(!proc_def.variable_length) {
+                            Compiler.err_and_die($"Too many args passed to {p.name}");
+                        }
+                        var should_be_32_bit_reg = false;
+                        var reg = get_reg(should_be_32_bit_reg);
+                        sb.Append(gen_expression_instructions(p.args[i], reg, var_offsets));
+                        sb.AppendLine($"\tstr\t{reg}, [sp, #{variadic_arg_stack_offset}]");
+                        variadic_arg_stack_offset += 8;
+                        free_reg(reg);
+                    }
+                    else {
+                        string reg_type = get_size_of_type(proc_def.parameters[i]) > 4 ? "x" : "w";
+                        sb.Append(gen_expression_instructions(p.args[i], $"{reg_type}{i}", var_offsets));
+                    }
                 }
                 sb.AppendLine($"\tbl\t_{p.name}");
                 // TODO: x or w register depending on type
@@ -326,7 +443,7 @@ public class CodeGen {
     }
 
     string get_label() {
-        return $".LBB0_{label_count++}";
+        return $".LBB{proc_count}_{label_count++}";
     }
 
     string get_reg(bool get_w_version) {

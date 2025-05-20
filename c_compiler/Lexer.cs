@@ -164,7 +164,6 @@ public class Lexer {
         // NOTE: No need to support 0 prefix octal, right? Who even uses octal? 001 is a decimal literal
         // hexadecimal
         int token_start = cur - 1;
-        char c = peek_char(-1);
         if(peek_char(-1) == '0' && (peek_char() == 'x' || peek_char() == 'X')) {
             consume_char();
             while(is_hex_number(peek_char()))

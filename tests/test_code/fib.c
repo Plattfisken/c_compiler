@@ -13,6 +13,8 @@ int fib(int n) {
 int main(void) {
     int n = 0;
     while(n < 10) {
-        printf("%d\n", fib(n++));
+        int result = fib(n++);
+        printf("%d\n", result);
     }
+    return 0;
 }
