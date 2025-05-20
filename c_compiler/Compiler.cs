@@ -3,10 +3,13 @@ using System.Text;
 namespace c_compiler;
 
 public static class Compiler {
+    public static void todo() {
+        throw new Exception("todo");
+    }
     public static void assert(bool exp, string message) {
         if(!exp) {
             Console.WriteLine($"Assertion failed: {message}");
-            System.Environment.Exit(1);
+            throw new Exception();
         }
     }
     public static void err_and_die(string err_message) {
@@ -58,7 +61,7 @@ public static class Compiler {
 
     static string code_gen(AstNode root_node) {
         var code_generator = new CodeGen();
-        return code_generator.code_gen(root_node);
+        return code_generator.code_gen((TranslationUnit)root_node);
     }
 
     static void type_check(AstNode root_node) {
@@ -77,14 +80,14 @@ public static class Compiler {
             sb.Append(indent);
         }
         sb.Append("\"" + Parser.node_to_str(node) + "\"");
-        if(node.children.Count > 0)
+        if(node.children.Length > 0)
             sb.Append(": [\n");
         else sb.Append("\n");
         foreach(var child in node.children) {
             sb.Append(generate_tree_representation(child, indentation_count + 1));
         }
 
-        if(node.children.Count > 0) {
+        if(node.children.Length > 0) {
             for(int i = 0; i < indentation_count; ++i) {
                 sb.Append(indent);
             }

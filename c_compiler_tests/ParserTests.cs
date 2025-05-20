@@ -3,7 +3,7 @@ using System.Globalization;
 using System.Text;
 using c_compiler;
 
-namespace Tests;
+namespace c_compiler_tests;
 
 public class ParserTests
 {

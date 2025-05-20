@@ -20,11 +20,11 @@ public class Parser {
     }
 
     AstNode translation_unit() {
-        var translation_unit_node = new TranslationUnit();
+        var top_level_statements = new List<AstNode>();
         while(!accept(TOKEN_TYPE.EOF)) {
-            translation_unit_node.children.Add(proc_def_or_top_level_decl());
+            top_level_statements.Add(proc_def_or_top_level_decl());
         }
-        return translation_unit_node;
+        return new TranslationUnit(top_level_statements.ToArray());
     }
 
     AstNode proc_def_or_top_level_decl() {
@@ -34,6 +34,7 @@ public class Parser {
 
         var name = (string)peek_token(-1).value;
         DataType[] parameters = [];
+        string?[] param_names = [];
         bool variable_length = false;
 
         // global var
@@ -41,13 +42,13 @@ public class Parser {
             return new VarDecl(name, type);
         }
         else if(accept(TOKEN_TYPE.EQUALS)) {
-            return new VarDecl(name, type, [expression(0)]);
+            return new VarDecl(name, type, expression(0));
         }
 
         // procedure
         expect(TOKEN_TYPE.OPEN_PAREN);
         if(!accept(TOKEN_TYPE.CLOSE_PAREN)) {
-            (parameters, variable_length) = param_specifier();
+            (parameters, param_names, variable_length) = param_specifier();
             expect(TOKEN_TYPE.CLOSE_PAREN);
         }
         // declaration
@@ -55,11 +56,12 @@ public class Parser {
             return new ProcedureDecl(name, type, parameters, variable_length);
         }
         // definition
-        return new ProcedureDef(name, type, parameters, variable_length, compound_statement().children);
+        return new ProcedureDef(name, type, parameters, param_names, variable_length, compound_statement().statements);
     }
 
-    (DataType[], bool) param_specifier() {
+    (DataType[], string?[], bool) param_specifier() {
         var parameters = new List<DataType>();
+        var names = new List<string?>();
         var variable_length = false;
         do {
             if(accept(TOKEN_TYPE.ELLIPSIS)) {
@@ -71,10 +73,15 @@ public class Parser {
             while(accept(TOKEN_TYPE.STAR))
                 ++parameter.indirection_count;
 
-            accept(TOKEN_TYPE.IDENTIFIER);
+            if(accept(TOKEN_TYPE.IDENTIFIER)) {
+                names.Add((string)peek_token(-1).value);
+            }
+            else {
+                names.Add(null);
+            }
             parameters.Add(parameter);
         } while(accept(TOKEN_TYPE.COMMA));
-        return (parameters.ToArray(), variable_length);
+        return (parameters.ToArray(), names.ToArray(), variable_length);
     }
 
     DATA_TYPE type_specifier() {
@@ -123,12 +130,12 @@ public class Parser {
         return indirection_count;
     }
 
-    AstNode compound_statement() {
-        var ret = new CompoundStatement();
+    CompoundStatement compound_statement() {
+        var statements = new List<AstNode>();
         expect(TOKEN_TYPE.OPEN_CURLY);
         while(!accept(TOKEN_TYPE.CLOSE_CURLY))
-            ret.children.Add(statement());
-        return ret;
+            statements.Add(statement());
+        return new CompoundStatement(statements.ToArray());
     }
 
     AstNode declaration() {
@@ -137,7 +144,7 @@ public class Parser {
         var name = (string)peek_token(-1).value;
 
         if(accept(TOKEN_TYPE.EQUALS))
-            return new VarDecl(name, new DataType(type, indirection_count), [expression(0)]);
+            return new VarDecl(name, new DataType(type, indirection_count), expression(0));
 
         return new VarDecl(name, new DataType(type, indirection_count));
     }
@@ -145,6 +152,15 @@ public class Parser {
     AstNode statement() {
         var t = peek_token();
         switch(t.type) {
+            case TOKEN_TYPE.KEYWORD_RETURN:
+                consume_token();
+                if(accept(TOKEN_TYPE.SEMICOLON))
+                    return new ReturnStatement();
+                else {
+                    var ret_expr = expression(0);
+                    expect(TOKEN_TYPE.SEMICOLON);
+                    return new ReturnStatement(ret_expr);
+                }
             case TOKEN_TYPE.SEMICOLON:
                 consume_token();
                 return new EmptyStatement();
@@ -165,7 +181,7 @@ public class Parser {
                 var name = (string)peek_token().value;
                 expect(TOKEN_TYPE.IDENTIFIER);
                 expect(TOKEN_TYPE.SEMICOLON);
-                return new Goto(name);
+                return new GotoStatement(name);
 
             case TOKEN_TYPE.OPEN_CURLY:
                 return compound_statement();
@@ -201,13 +217,12 @@ public class Parser {
         var condition = expression(0);
         expect(TOKEN_TYPE.CLOSE_PAREN);
 
-        var ret = new IfStatement(condition);
         var if_case = statement();
         if(accept(TOKEN_TYPE.KEYWORD_ELSE)) {
             var else_case = statement();
-            return new IfStatement(condition, [if_case, else_case]);
+            return new IfStatement(condition, if_case, else_case);
         }
-        return new IfStatement(condition, [if_case]);
+        return new IfStatement(condition, if_case);
     }
 
     AstNode do_statement() {
@@ -218,7 +233,7 @@ public class Parser {
         var condition = expression(0);
         expect(TOKEN_TYPE.CLOSE_PAREN);
         expect(TOKEN_TYPE.SEMICOLON);
-        return new DoStatement(condition, [stmnt]);
+        return new DoStatement(condition, stmnt);
     }
 
     AstNode while_statement() {
@@ -227,7 +242,7 @@ public class Parser {
         var condition = expression(0);
         expect(TOKEN_TYPE.CLOSE_PAREN);
         var stmnt = statement();
-        return new WhileStatement(condition, [stmnt]);
+        return new WhileStatement(condition, stmnt);
     }
 
     AstNode for_statement() {
@@ -243,15 +258,15 @@ public class Parser {
         var each_iter = expression(0);
         expect(TOKEN_TYPE.CLOSE_PAREN);
         var stmnt = statement();
-        return new ForStatement(before, condition, each_iter, [stmnt]);
+        return new ForStatement(before, condition, each_iter, stmnt);
     }
 
-    List<AstNode> arguments() {
+    AstNode[] arguments() {
         var ret = new List<AstNode>();
         do {
             ret.Add(expression(0, break_at_comma: true));
         } while(accept(TOKEN_TYPE.COMMA));
-        return ret;
+        return ret.ToArray();
     }
 
     // TODO: prefix operator (cast)
@@ -262,9 +277,10 @@ public class Parser {
             case TOKEN_TYPE.IDENTIFIER:
                 var name = (string)t.value;
                 if(accept(TOKEN_TYPE.OPEN_PAREN)) {
-                    left_hand_side = new ProcedureCall(name);
-                    if(!accept(TOKEN_TYPE.CLOSE_PAREN)) {
-                        left_hand_side.children = arguments();
+                    if(accept(TOKEN_TYPE.CLOSE_PAREN))
+                        left_hand_side = new ProcedureCall(name);
+                    else {
+                        left_hand_side = new ProcedureCall(name, arguments());
                         expect(TOKEN_TYPE.CLOSE_PAREN);
                     }
                 }
@@ -290,15 +306,12 @@ public class Parser {
                 left_hand_side = new StringLiteral((string)t.value);
                 break;
             default:
-                var op = new PrefixOperator(t.type);
                 var r_bp = get_prefix_binding_power(t.type);
-
                 if(r_bp == -1)
                     parse_error("Expected identifier, literal or prefix operator", peek_token(-1));
 
                 var right_hand_side = expression(r_bp);
-                op.children.Add(right_hand_side);
-                left_hand_side = op;
+                left_hand_side = new PrefixOperator(t.type, right_hand_side);
                 break;
         }
         while(true) {
@@ -314,15 +327,10 @@ public class Parser {
                 if(op_type == TOKEN_TYPE.OPEN_BRACKET) {
                     var right_hand_side = expression(0);
                     expect(TOKEN_TYPE.CLOSE_BRACKET);
-                    var postfix_op = new PostfixOperator(op_type);
-                    postfix_op.children.Add(left_hand_side);
-                    postfix_op.children.Add(right_hand_side);
-                    left_hand_side = postfix_op;
+                    left_hand_side = new InfixOperator(op_type, left_hand_side, right_hand_side);
                 }
                 else {
-                    var postfix_op = new PostfixOperator(op_type);
-                    postfix_op.children.Add(left_hand_side);
-                    left_hand_side = postfix_op;
+                    left_hand_side = new PostfixOperator(op_type, left_hand_side);
                 }
                 continue;
             }
@@ -338,19 +346,11 @@ public class Parser {
                     expect(TOKEN_TYPE.COLON);
                     var right_hand_side = expression(r_bp);
 
-                    var op = new InfixOperator(op_type);
-                    op.children.Add(left_hand_side);
-                    op.children.Add(middle_hand_side);
-                    op.children.Add(right_hand_side);
-                    left_hand_side = op;
+                    left_hand_side = new TernaryOperator(op_type, left_hand_side, middle_hand_side, right_hand_side);
                 }
                 else {
                     var right_hand_side = expression(r_bp);
-
-                    var op = new InfixOperator(op_type);
-                    op.children.Add(left_hand_side);
-                    op.children.Add(right_hand_side);
-                    left_hand_side = op;
+                    left_hand_side = new InfixOperator(op_type, left_hand_side, right_hand_side);
                 }
                 continue;
             }
@@ -527,7 +527,7 @@ public class Parser {
         foreach (var child in node.children)
         {
             sb.Append(' ');
-            if(child.children.Count > 0) sb.Append(ast_to_s_expr(child));
+            if(child.children.Length > 0) sb.Append(ast_to_s_expr(child));
             else
             {
                 sb.Append(node_to_str(child));
@@ -542,6 +542,7 @@ public class Parser {
         PrefixOperator op => Lexer.token_type_to_lexeme(op.type),
         PostfixOperator op => Lexer.token_type_to_lexeme(op.type),
         InfixOperator op => Lexer.token_type_to_lexeme(op.type),
+        TernaryOperator op => Lexer.token_type_to_lexeme(op.type),
         Var v => v.name,
         ProcedureCall p => p.name,
         ProcedureDecl p => p.name,

@@ -36,6 +36,11 @@ internal static class Program
         for(int i = 0; i < source_file_names.Count; ++i) {
             string code = Compiler.read_entire_file_as_string(source_file_names[i]!);
             string assembly = Compiler.compile(code, print_ast_only);
+
+            Console.WriteLine(assembly);
+            if(generate_assembly_only) return;
+
+
             Compiler.write_to_file(assembly, source_file_names_without_ext[i] + ".s");
         }
 
