@@ -173,7 +173,14 @@ public class CodeGen {
                     sb.AppendLine($"{out_label}:");
                 } break;
                 case DoStatement d: {
-                    Compiler.todo();
+                    var loop_label = get_label();
+                    sb.AppendLine($"{loop_label}:");
+                    generate_statement_code(d.body);
+                    var should_be_32_bit_reg = true;
+                    var reg = get_reg(should_be_32_bit_reg);
+                    sb.Append(gen_expression_instructions(d.condition, reg, var_offsets));
+                    sb.AppendLine($"\ttbnz\t{reg}, #0, {loop_label}");
+                    free_reg(reg);
                 } break;
                 case ForStatement f: {
                     generate_statement_code(f.before);
@@ -362,6 +369,16 @@ public class CodeGen {
                         sb.AppendLine($"\tsub\t{dest_reg}, {dest_reg}, #1");
                         sb.AppendLine($"\tstr\t{dest_reg}, [sp, {var_offsets[((Var)p.operand).name]}]");
                     } break;
+                    case TOKEN_TYPE.MINUS: {
+                        sb.Append(gen_expression_instructions(p.operand, dest_reg, var_offsets));
+                        var should_be_32_bit_reg = true;
+                        var reg = get_reg(should_be_32_bit_reg);
+                        sb.AppendLine($"\tmov\t{reg}, #0");
+                        sb.AppendLine($"\tsub\t{dest_reg}, {reg}, {dest_reg}");
+                        free_reg(reg);
+                    } break;
+                    case TOKEN_TYPE.PLUS:
+                        break;
                     default:
                      Compiler.todo();
                      break;

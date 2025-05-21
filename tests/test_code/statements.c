@@ -7,6 +7,6 @@ int main(void) {
     }
     else if(x < 0) do { x--; } while(x > -100);
     for(int i = 0; i < 10; ++i)
-        printf("%d", x);
+        printf("%d\n", x);
     return x;
 }
