@@ -8,6 +8,7 @@ internal static class Program
         bool generate_assembly_only = false;
         bool save_temp_files = false;
         bool print_ast_only = false;
+        bool print_tokens = false;
         string exe_name = "a.out";
         List<string> source_file_names = new();
         for(int i = 0; i < args.Length; ++i) {
@@ -21,6 +22,7 @@ internal static class Program
                     exe_name = args[++i];
                 }
                 else if(args[i] == "-A") print_ast_only = true;
+                else if(args[i] == "-T") print_tokens = true;
                 else {
                     Compiler.err_and_die($"Unknown option: {args[i]}");
                 }
@@ -35,12 +37,9 @@ internal static class Program
         var source_file_names_without_ext = source_file_names.Select(f => Path.GetFileNameWithoutExtension(f)).ToArray();
         for(int i = 0; i < source_file_names.Count; ++i) {
             string code = Compiler.read_entire_file_as_string(source_file_names[i]!);
-            string assembly = Compiler.compile(code, print_ast_only);
+            string assembly = Compiler.compile(code, print_ast_only, print_tokens);
 
             Console.WriteLine(assembly);
-            if(generate_assembly_only) return;
-
-
             Compiler.write_to_file(assembly, source_file_names_without_ext[i] + ".s");
         }
 

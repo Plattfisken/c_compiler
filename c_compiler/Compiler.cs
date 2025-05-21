@@ -96,7 +96,30 @@ public static class Compiler {
         return sb.ToString();
     }
 
-    public static string compile(string source_code, bool print_ast_only) {
+    public static string compile(string source_code, bool print_ast_only, bool print_tokens) {
+        if(print_tokens) {
+            var tokens = tokenize(source_code);
+            foreach(var token in tokens) {
+                Console.Write(token.type);
+                switch(token.type) {
+                    case TOKEN_TYPE.IDENTIFIER:
+                        Console.Write(" : " + ((string)token.value));
+                        break;
+                    case TOKEN_TYPE.STRING_LITERAL:
+                        Console.Write(" : " + ((string)token.value));
+                        break;
+                    case TOKEN_TYPE.INT_LITERAL:
+                        Console.Write(" : " + ((long)token.value).ToString());
+                        break;
+                    case TOKEN_TYPE.FLOAT_LITERAL:
+                        Console.Write(" : " + ((float)token.value).ToString());
+                        break;
+                    default:
+                        break;
+                }
+                Console.WriteLine();
+            }
+        }
         var ast = parse(source_code);
         if(print_ast_only) {
             print_ast(ast);
