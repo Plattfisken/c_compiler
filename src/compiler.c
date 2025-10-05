@@ -1,12 +1,5 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-
-#define USEFUL_THINGS_IMPLEMENTATION
 #include <useful_things.h>
-#include "lexer.c"
-
-#include "compiler.h"
+#include "lexer.h"
 
 int main(int argc, char **argv) {
     if(argc < 2) {
