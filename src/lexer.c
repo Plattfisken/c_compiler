@@ -1,67 +1,30 @@
 #include "lexer.h"
-#include <string.h>
 
-int is_end_of_line(char c) {
+#include <string.h>
+#include <stdbool.h>
+
+bool is_end_of_line(char c) {
     return c == '\n' || c == '\r';
 }
 
-int is_white_space(char c) {
+bool is_white_space(char c) {
     return c == ' ' || c == '\t' || is_end_of_line(c);
 }
 
-int is_ascii_alphabetic(char c) {
+bool is_ascii_alphabetic(char c) {
     return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z' );
 }
 
-int is_numeric(char c) {
+bool is_numeric(char c) {
     return c >= '0' && c <= '9';
 }
 
-int is_ascii_alpha_numeric(char c) {
+bool is_ascii_alpha_numeric(char c) {
     return is_numeric(c) || is_ascii_alphabetic(c);
 }
 
-int is_valid_id_char(char c) {
+bool is_valid_id_char(char c) {
     return is_ascii_alpha_numeric(c) || c == '_';
-}
-
-char *stringify_token_type_name(TOKEN_TYPE t) {
-    switch(t) {
-        case T_IDENTIFIER: return "T_IDENTIFIER";
-        case T_STRING_LITERAL: return "T_STRING_LITERAL";
-        case T_INT_LITERAL: return "T_INT_LITERAL";
-        case T_FLOAT_LITERAL: return "T_FLOAT_LITERAL";
-        case T_CHAR_LITERAL: return "T_CHAR_LITERAL";
-
-        case T_PLUS_PLUS: return "T_PLUS_PLUS";
-        case T_MINUS_MINUS: return "T_MINUS_MINUS";
-        case T_LEFT_SHIFT: return "T_LEFT_SHIFT";
-        case T_RIGHT_SHIFT: return "T_RIGHT_SHIFT";
-        case T_PLUS_EQUALS: return "T_PLUS_EQUALS";
-        case T_MINUS_EQUALS: return "T_MINUS_EQUALS";
-        case T_STAR_EQUALS: return "T_STAR_EQUALS";
-        case T_SLASH_EQUALS: return "T_SLASH_EQUALS";
-        case T_PROCENT_EQUALS: return "T_PROCENT_EQUALS";
-        case T_AND_EQUALS: return "T_AND_EQUALS";
-        case T_OR_EQUALS: return "T_OR_EQUALS";
-        case T_XOR_EQUALS: return "T_XOR_EQUALS";
-        case T_NOT_EQUALS: return "T_NOT_EQUALS";
-        case T_LEFT_SHIFT_EQUALS: return "T_LEFT_SHIFT_EQUALS";
-        case T_RIGHT_SHIFT_EQUALS: return "T_RIGHT_SHIFT_EQUALS";
-        case T_EQUALS_EQUALS: return "T_EQUALS_EQUALS";
-        case T_EXCLAM_EQUALS: return "T_EXCLAM_EQUALS";
-        case T_GREATER_EQUALS: return "T_GREATER_EQUALS";
-        case T_LESSER_EQUALS: return "T_LESSER_EQUALS";
-        case T_OR_OR: return "T_OR_OR";
-        case T_AND_AND: return "T_AND_AND";
-        case T_ARROW: return "T_ARROW";
-
-        case T_PREPROC_LINE: return "T_PREPROC_LINE";
-        case T_EOF: return "T_EOF";
-        case T_ERROR: return "T_ERROR";
-
-        default: return NULL;
-    }
 }
 
 TOKEN_TYPE multi_char_token(Lexer *lexer) {
@@ -142,27 +105,42 @@ Token tokenize_quote_literal(Lexer *lexer) {
     return (Token){ token_start, token_len, qoute_type == '"' ? T_STRING_LITERAL : T_CHAR_LITERAL };
 }
 
-Token next_token(Lexer *lexer) {
+Token peek_token(Lexer *lexer) {
+    Token current_token = lexer->token;
+    next_token(lexer);
+    Token peeked_token = lexer->token;
+    // revert lol
+    lexer->at -= peeked_token.len;
+    lexer->token = current_token;
+    return peeked_token;
+}
+
+// gets the next token and stores it in lexer->token. Returns true on success and false after the last token has been retrieved
+bool next_token(Lexer *lexer) {
     consume_white_space_and_comments(lexer);
 
     // end of file
-    if(!lexer->at[0])
-        return (Token){ lexer->at, 0, T_EOF };
+    if(!lexer->at[0]) {
+        lexer->token = (Token){ lexer->at, 0, T_EOF };
+        return false;
+    }
 
     // preprocessor lines, if we implement a preprocessor these should all be gone at this stage, but let's handle them anyway for now.
-    if(*lexer->at == '#') {
-        char *token_start = lexer->at++;
-        while(!is_end_of_line(lexer->at[0])) {
-            if(lexer->at[0] == '\\') ++lexer->at;
-            ++lexer->at;
-        }
-        uint32 token_len = (uint32)(lexer->at - token_start);
-        return (Token){ token_start, token_len, T_PREPROC_LINE };
-    }
+    // if(*lexer->at == '#') {
+    //     char *token_start = lexer->at++;
+    //     while(!is_end_of_line(lexer->at[0])) {
+    //         if(lexer->at[0] == '\\') ++lexer->at;
+    //         ++lexer->at;
+    //     }
+    //     uint32 token_len = (uint32)(lexer->at - token_start);
+    //     lexer->token = (Token){ token_start, token_len, T_PREPROC_LINE };
+    //     return true;
+    // }
 
     // string/char literals
     if(lexer->at[0] == '"' || lexer->at[0] == '\'') {
-        return tokenize_quote_literal(lexer);
+        lexer->token = tokenize_quote_literal(lexer);
+        return true;
     }
 
     // numeric literals
@@ -184,7 +162,8 @@ Token next_token(Lexer *lexer) {
     if(is_ascii_alphabetic(lexer->at[0]) || lexer->at[0] == '_') {
         char *token_start = lexer->at;
         while(is_valid_id_char((++lexer->at)[0]));
-        return (Token){ token_start, (int)(lexer->at - token_start), T_IDENTIFIER };
+        lexer->token = (Token){ token_start, (int)(lexer->at - token_start), T_IDENTIFIER };
+        return true;
     }
 
     {
@@ -192,19 +171,22 @@ Token next_token(Lexer *lexer) {
         TOKEN_TYPE result = multi_char_token(lexer);
         if(result) {
             int token_len = (int)(lexer->at - token_start);
-            return (Token){ token_start, token_len, result };
+            lexer->token = (Token){ token_start, token_len, result };
+            return true;
         }
     }
 
-    Token ret = { lexer->at, 1, lexer->at[0] };
+    lexer->token = (Token){ lexer->at, 1, lexer->at[0] };
     ++lexer->at;
-    return ret;
+    return true;
 }
-
+// NOTE: meta program uses this lexer to generate the function that this function uses, reason for this conditional compilation
+#ifndef META_PROGRAMMING
 void print_token(Token t) {
     if(t.type < T_IDENTIFIER){
         printf("%.*s\n", (int)t.len, t.loc);
     } else {
-        printf("%s: %.*s\n",stringify_token_type_name(t.type), (int)t.len, t.loc);
+        printf("%s: %.*s\n", TOKEN_TYPE_to_string(t.type), (int)t.len, t.loc);
     }
 }
+#endif

@@ -1,9 +1,7 @@
 #ifndef LEXER_H
 #define LEXER_H
 
-typedef struct {
-    char *at;
-} Lexer;
+#include <stdbool.h>
 
 typedef enum {
     T_IDENTIFIER = 256,
@@ -39,14 +37,21 @@ typedef enum {
     T_ERROR
 } TOKEN_TYPE;
 
-
 typedef struct {
     char *loc;
     size_t len;
     TOKEN_TYPE type;
 } Token;
 
-Token next_token(Lexer *lexer);
+typedef struct {
+    char *at;
+    Token token;
+} Lexer;
+
+// stores next token in lexer->token and advances the lexer
+bool next_token(Lexer *lexer);
+// returns the next token without advancing the lexer
+Token peek_token(Lexer *lexer);
 void print_token(Token t);
 
 #endif
